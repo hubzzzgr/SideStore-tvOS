@@ -106,3 +106,5 @@ scratch*.sh
 *.sh
 .reference/
 artifacts/
+Packages/TVPairCore/Vendor/
+Packages/TVPairCore/.build/
