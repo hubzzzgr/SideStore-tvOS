@@ -5,6 +5,11 @@ on:
   pull_request:
     branches: [tvos]
   workflow_dispatch:
+    inputs:
+      skip_protocol_tests:
+        description: Skip protocol tests already validated for this change
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -40,6 +45,7 @@ jobs:
           set -euo pipefail
           python3 scripts/ci/prepare-tv-binaries.py
       - name: Protocol tests
+        if: ${{ !inputs.skip_protocol_tests }}
         run: |
           set -o pipefail
           export TVPAIR_OPENSSL_CLI="$(brew --prefix openssl@3)/bin/openssl"
