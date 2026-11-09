@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A84596F62F7DC4C90000B8CD /* SideStore.conf in Resources */ = {isa = PBXBuildFile; fileRef = A84596F52F7DC4C90000B8CD /* SideStore.conf */; };
 		A87939D3303A89CA004D9227 /* TVPairCore in Frameworks */ = {isa = PBXBuildFile; productRef = A87939D2303A89CA004D9227 /* TVPairCore */; };
 		A8C37029302DA7F30010213A /* MarkdownKit in Frameworks */ = {isa = PBXBuildFile; platformFilter = ios; productRef = A8C37028302DA7F30010213A /* MarkdownKit */; };
 		A8C3702C302DA80D0010213A /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = A8C3702B302DA80D0010213A /* KeychainAccess */; };
@@ -66,7 +65,6 @@
 		A84596F22F7DC4C90000B8CD /* .gitmodules */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitmodules; sourceTree = "<group>"; };
 		A84596F32F7DC4C90000B8CD /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		A84596F42F7DC4C90000B8CD /* trustedapps.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = trustedapps.json; sourceTree = "<group>"; };
-		A84596F52F7DC4C90000B8CD /* SideStore.conf */ = {isa = PBXFileReference; lastKnownFileType = text; path = SideStore.conf; sourceTree = "<group>"; };
 		B3C39606284F4C8400DA9E2F /* CodeSigning.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = CodeSigning.xcconfig; sourceTree = "<group>"; };
 		B3C39607284F4C8400DA9E2F /* Build.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Build.xcconfig; sourceTree = "<group>"; };
 		B3C39608284F4C8400DA9E2F /* CodeSigning.xcconfig.sample */ = {isa = PBXFileReference; lastKnownFileType = text; path = CodeSigning.xcconfig.sample; sourceTree = "<group>"; };
@@ -286,7 +284,6 @@
 				A84596F22F7DC4C90000B8CD /* .gitmodules */,
 				A84596F32F7DC4C90000B8CD /* README.md */,
 				A84596F42F7DC4C90000B8CD /* trustedapps.json */,
-				A84596F52F7DC4C90000B8CD /* SideStore.conf */,
 				A8E8DEA73059BC9800F69B47 /* Frameworks */,
 			);
 			sourceTree = "<group>";
@@ -458,7 +455,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A84596F62F7DC4C90000B8CD /* SideStore.conf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

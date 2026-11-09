@@ -150,6 +150,7 @@ extension DeveloperConnection {
         do { let result = try await body(client); await client.close(); return result }
         catch { await client.close(); throw error }
     }
+    // Needs proper testing on physical tvOS; shim availability varies by firmware.
     public func verifyInstallationServices() async throws {
         try beginAppOperation(); defer { operating = false }
         // Actual protocol probes, not just advertised ports.

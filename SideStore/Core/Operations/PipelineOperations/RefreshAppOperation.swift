@@ -32,32 +32,10 @@ final class RefreshAppOperation: BasePipelineOperation<InstallAppOperationContex
         for profile in profiles.values { try await AppleTVManager.shared.validateProfile(profile) }
         self.setProgress(10)
         
-        if self.context.isCellularRefreshGroup {
-            debugLog("[RefreshAppOperation] Queueing \(self.context.bundleIdentifier) into batch profile injection (isCellularRefreshGroup = true)")
-            self.context.sharedContext.addPendingProfileBatch(PendingProfileBatch(
-                bundleID: self.context.bundleIdentifier,
-                profiles: profiles.values.map { $0.data },
-                app: self.context.installedApp,
-                certStatus: self.context.targetCertStatus
-            ))
-            self.setProgress(85)
-            guard let app = self.context.installedApp else {
-                throw OperationError.invalidParameters("RefreshAppOperation: context.installedApp is nil")
-            }
-            return app
+        for profile in profiles.values {
+            try await installProvisioningProfiles(profile.data)
         }
-        
-        do {
 
-            for p in profiles {
-                try await installProvisioningProfiles(p.value.data)
-            }
-
-        } catch {
-
-            throw error
-        }
-        
         self.setProgress(80)
         let dbContext = self.context.dbBackgroundContext
         

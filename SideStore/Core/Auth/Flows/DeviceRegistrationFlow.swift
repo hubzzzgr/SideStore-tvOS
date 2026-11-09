@@ -45,41 +45,24 @@ final class DeviceRegistrationFlow: @unchecked Sendable {
     }
     
     private func fetchDeviceUDID() async throws -> String {
-        let isCellularEnabled = false
-        if isCellularEnabled {
-
-        }
-        
-        do {
-            let udid = try await safeFetchUDID()
-            
-            if isCellularEnabled {
-
-            }
-            return udid
-        } catch {
-            if isCellularEnabled {
-
-            }
-            throw error
-        }
+        try await safeFetchUDID()
     }
 
     private func performDeviceRegistration(for team: ALTTeam) async throws -> ALTDevice {
         debugLog("[DeviceRegistrationFlow] performDeviceRegistration starting...")
         let udid = try await self.fetchDeviceUDID()
-        debugLog("[DeviceRegistrationFlow] Fetched device UDID: \(udid). Fetching team devices...")
+        debugLog("[DeviceRegistrationFlow] Retrieved authenticated TV identifier. Fetching team devices...")
         
         let devices = try await DeveloperPortalProxy.shared.fetchDevices(for: team, types: .appleTV)
         if let device = devices.first(where: { $0.identifier.caseInsensitiveCompare(udid) == .orderedSame }) {
-            debugLog("[DeviceRegistrationFlow] Device '\(device.name)' (UDID: \(udid)) is registered on team.")
+            debugLog("[DeviceRegistrationFlow] Device '\(device.name)' is registered on team.")
             UserDefaults.standard.isDeviceRegistered = true
             return device
         } else {
             let deviceName = await AppleTVManager.shared.information?.name ?? "Apple TV"
-            debugLog("[DeviceRegistrationFlow] Registering new device '\(deviceName)' (UDID: \(udid))...")
+            debugLog("[DeviceRegistrationFlow] Registering new device '\(deviceName)'...")
             let device = try await DeveloperPortalProxy.shared.registerDevice(name: deviceName, identifier: udid, type: DeveloperPortalProxy.currentDeviceType, team: team)
-            debugLog("[DeviceRegistrationFlow] Device '\(device.name)' (UDID: \(udid)) successfully registered.")
+            debugLog("[DeviceRegistrationFlow] Device '\(device.name)' successfully registered.")
             UserDefaults.standard.isDeviceRegistered = true
             return device
         }

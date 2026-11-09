@@ -21,6 +21,13 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '26.3'
+      - uses: actions/cache/restore@v4
+        id: dependency-cache
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            Packages/TVPairCore/.build
+          key: tvos-xcode26.3-v1-${{ hashFiles('**/Package.resolved') }}
       - name: Toolchain
         run: |
           mkdir -p artifacts
@@ -58,6 +65,12 @@ jobs:
               rm -f "$bundle/embedded.mobileprovision"
             done
           xcrun lipo -info build/unsigned/Payload/SideStore.app/SideStore | tee artifacts/architecture.txt
+          xcrun lipo -verify_arch arm64 build/unsigned/Payload/SideStore.app/SideStore
+          xcrun vtool -show-build build/unsigned/Payload/SideStore.app/SideStore | tee -a artifacts/architecture.txt
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms:0' build/unsigned/Payload/SideStore.app/Info.plist | grep -x iPhoneOS
+          if codesign -d build/unsigned/Payload/SideStore.app >/dev/null 2>&1; then
+            echo 'Controller unexpectedly remains signed'; exit 1
+          fi
           (cd build/unsigned && zip -qry ../../artifacts/SideStoreTV-unsigned.ipa Payload)
           shasum -a 256 artifacts/SideStoreTV-unsigned.ipa > artifacts/SHA256SUMS.txt
           echo 'Unsigned iPhone arm64 controller. Apply your own iOS signing/install process. CI does not validate installation on a physical Apple TV.' > artifacts/INSTALL.txt
@@ -76,3 +89,10 @@ jobs:
           name: SideStoreTV-build-diagnostics
           path: artifacts/
           retention-days: 14
+      - uses: actions/cache/save@v4
+        if: ${{ always() && !cancelled() && steps.dependency-cache.outputs.cache-hit != 'true' }}
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            Packages/TVPairCore/.build
+          key: ${{ steps.dependency-cache.outputs.cache-primary-key }}

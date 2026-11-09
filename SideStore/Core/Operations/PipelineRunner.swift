@@ -103,6 +103,13 @@ final class PipelineRunner: Sendable
                  handler: PipelineExecutionHandler,
                  group: RefreshGroup) async throws -> RefreshGroup
     {
+        for operation in operations {
+            switch operation {
+            case .backup, .restore, .activate, .deactivate:
+                throw OperationError.invalidParameters("App data backup, restore and deactivation are unavailable for a remote Apple TV.")
+            default: break
+            }
+        }
         let operations = operations.filter { progress.progress(for: $0) == nil || progress.progress(for: $0)?.isCancelled == true }
         guard !operations.isEmpty else { throw OperationError.cancelled }
         
