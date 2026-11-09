@@ -126,20 +126,39 @@ actor TunnelTCPStream {
         let deadline = Date().addingTimeInterval(timeout)
         var offset = 0
         while offset < data.count {
+            try Task.checkCancellation()
+            guard deadline > Date() else { throw TVPairError.timeout }
             guard window > 0 else { throw TVPairError.unsupported("zero TCP send window") }
-            let size = min(1024, Int(window), data.count - offset), original = sequence, expected = sequence &+ UInt32(size)
-            try await emit(flags: 0x18, payload: data.subdata(in: offset..<(offset + size)))
-            sequence = expected
-            // Reliable ordered TLS carrier: bounded wait for the peer's cumulative acknowledgement.
-            var acknowledged = false
+            // Fill a bounded portion of the advertised window before waiting.
+            // Stop-and-wait per 1 KiB makes bulk AFC uploads pay a delayed-ACK
+            // round trip for every segment, despite the reliable TLS carrier.
+            let size = min(32_768, Int(window), data.count - offset)
+            let original = sequence
+            var sent = 0
+            while sent < size {
+                try Task.checkCancellation()
+                guard deadline > Date() else { throw TVPairError.timeout }
+                let count = min(1024, size - sent)
+                let end = offset + sent + count
+                try await emit(flags: sent + count == size ? 0x18 : 0x10,
+                               payload: data.subdata(in: (offset + sent)..<end))
+                sequence &+= UInt32(count); sent += count
+            }
+            var acknowledged: UInt32 = 0
             for _ in 0..<256 {
                 let segment = try await receive(deadline: deadline)
                 try await consume(segment)
-                if segment.flags & 0x10 != 0 && segment.acknowledgement == expected { acknowledged = true; break }
-                if segment.flags & 0x10 != 0 && segment.acknowledgement &- original > UInt32(size) { throw TVPairError.malformed("TCP acknowledgement outside send range") }
+                guard !ended else { throw TVPairError.closed }
+                if segment.flags & 0x10 != 0 {
+                    let distance = segment.acknowledgement &- original
+                    if distance <= UInt32(size) { acknowledged = max(acknowledged, distance) }
+                    else if distance < 0x8000_0000 { throw TVPairError.malformed("TCP acknowledgement outside send range") }
+                    // Older cumulative ACKs are normal, including across writes.
+                    if acknowledged == UInt32(size) { break }
+                }
             }
-            guard acknowledged else { throw TVPairError.timeout }
-            sequence = expected; offset += size
+            guard acknowledged == UInt32(size) else { throw TVPairError.timeout }
+            offset += size
         }
     }
     func readExactly(_ count: Int, timeout: TimeInterval) async throws -> Data {

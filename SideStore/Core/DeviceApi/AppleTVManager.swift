@@ -18,6 +18,8 @@ final class AppleTVManager: ObservableObject {
     @Published var pin = ""
     @Published private(set) var selectedID: UUID?
     @Published private(set) var installedApps: [String: String] = [:]
+    @Published private(set) var transferStatus: String?
+    private var lastTransferLog = Date.distantPast
     private var developer: DeveloperConnection?
     private var transport: (any ByteTransport)?
     private var pinContinuation: CheckedContinuation<String, Error>?
@@ -232,16 +234,51 @@ final class AppleTVManager: ObservableObject {
             throw OperationError.invalidParameters("A valid tvOS development profile containing the selected Apple TV's UDID is required. Apple may restrict tvOS provisioning for this account.")
         }
     }
-    func stage(bundleID: String, url: URL) async throws {
-        let connection = try await ready()
-        staged[bundleID] = try await connection.stageIPA(url)
+    func stage(bundleID: String, url: URL, progress: @escaping @Sendable (TVUploadProgress) async throws -> Void = { _ in }) async throws {
+        transferStatus = "Connecting to Apple TV for upload…"
+        debugLog("[AppleTVUpload] Preparing the signed IPA for transfer.")
+        lastTransferLog = .distantPast
+        do {
+            let connection = try await ready()
+            staged[bundleID] = try await connection.stageIPA(url) { event in
+                await self.reportTransfer(event)
+                try await progress(event)
+            }
+        } catch {
+            developer?.cancel(); developer = nil; readyAt = .distantPast
+            readiness.send(.failure(error))
+            status = error.localizedDescription; transferStatus = "Apple TV upload failed."
+            debugLog("[AppleTVUpload] FAILED: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    private func reportTransfer(_ event: TVUploadProgress) {
+        let message: String
+        var logNow = true
+        switch event {
+        case .openingService: message = "Opening Apple TV file service…"
+        case .preparingDirectory: message = "Preparing Apple TV upload folder…"
+        case .openingFile: message = "Opening the IPA on Apple TV…"
+        case let .uploading(completed, total):
+            let sent = ByteCountFormatter.string(fromByteCount: completed, countStyle: .file)
+            let size = ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
+            message = "Uploading \(sent) of \(size)…"
+            logNow = completed == 0 || completed == total || Date().timeIntervalSince(lastTransferLog) >= 2
+        case .closingFile: message = "Finishing the Apple TV upload…"
+        case .complete: message = "Upload complete. Preparing installation…"
+        }
+        transferStatus = message
+        if logNow { debugLog("[AppleTVUpload] \(message)"); lastTransferLog = Date() }
     }
     func install(bundleID: String, expectedBundleID: String? = nil, version: String? = nil, build: String? = nil) async throws {
         guard let path = staged.removeValue(forKey: bundleID), let developer else { throw OperationError.invalidParameters("No package has been staged on the selected Apple TV.") }
+        transferStatus = "Installing on Apple TV…"
         do {
             try await developer.install(stagedPath: path, bundleIdentifier: expectedBundleID ?? bundleID, version: version, build: build)
             try? await developer.removeStagedIPA(path)
+            transferStatus = nil
         } catch {
+            transferStatus = "Apple TV installation failed."
             try? await developer.removeStagedIPA(path)
             throw error
         }

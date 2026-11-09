@@ -10,6 +10,7 @@
 import Foundation
 import Network
 import SideSign
+import TVPairCore
 
 final class SendAppOperation: BasePipelineOperation<InstallAppOperationContext, ALTApplication>, @unchecked Sendable {
     
@@ -31,7 +32,15 @@ final class SendAppOperation: BasePipelineOperation<InstallAppOperationContext, 
         guard let ipaURL = self.context.ipaURL else {
             throw OperationError.invalidParameters("The signed tvOS IPA has not been packaged.")
         }
-        try await AppleTVManager.shared.stage(bundleID: bundleIdentifier, url: ipaURL)
+        try await AppleTVManager.shared.stage(bundleID: bundleIdentifier, url: ipaURL) { event in
+            if self.isCancelled || Task.isCancelled { throw CancellationError() }
+            switch event {
+            case let .uploading(completed, total):
+                self.setProgress(10 + Int64(Double(completed) / Double(max(total, 1)) * 80))
+            case .closingFile: self.setProgress(95)
+            default: break
+            }
+        }
         self.setProgress(100)
         return resignedAppBundle
     }

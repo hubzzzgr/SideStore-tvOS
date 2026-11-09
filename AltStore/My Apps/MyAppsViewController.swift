@@ -15,6 +15,7 @@ import Combine
 import CoreData
 import UniformTypeIdentifiers
 import SemanticVersion
+import TVPairCore
 
 import Nuke
 
@@ -65,6 +66,7 @@ class MyAppsViewController: UICollectionViewController
     private var pendingImportURL: URL?
     
     private var minimuxerStatusCheckTask: Task<Void, Never>?
+    private var transferStatusSubscription: AnyCancellable?
     
     // Cache
     private var cachedUpdateSizes = [String: CGSize]()
@@ -89,6 +91,9 @@ class MyAppsViewController: UICollectionViewController
     override func viewDidLoad()
     {
         super.viewDidLoad()
+        transferStatusSubscription = AppleTVManager.shared.$transferStatus
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] status in self?.navigationItem.prompt = status }
         
         // Allows us to intercept delegate callbacks.
         self.updatesDataSource.fetchedResultsController.delegate = self
@@ -1006,7 +1011,13 @@ private extension MyAppsViewController
                         completion(.failure(OperationError.cancelled))
                     } else {
                         if let self {
-                            ToastView(error: error, opensLog: true).show(in: self)
+                            if (error as NSError).domain == TVInstallationError.errorDomain, self.presentedViewController == nil {
+                                let alert = UIAlertController(title: "Unable to Install on Apple TV", message: error.localizedDescription, preferredStyle: .alert)
+                                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                                self.present(alert, animated: true)
+                            } else {
+                                ToastView(error: error, opensLog: true).show(in: self)
+                            }
                         }
                         completion(.failure(error))
                     }

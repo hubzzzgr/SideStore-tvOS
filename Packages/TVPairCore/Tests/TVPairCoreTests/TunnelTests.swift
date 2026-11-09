@@ -2,6 +2,38 @@ import XCTest
 @testable import TVPairCore
 
 final class TunnelTests: XCTestCase {
+    func testBulkUploadDoesNotWaitForAnAckAfterEachSegment() async throws {
+        let carrier = BulkTunnelPeer()
+        let tunnel = TrustedTunnel(transport: carrier, configuration: TunnelConfiguration(clientAddress: "fd00::1", serverAddress: "fd00::2", rsdPort: 1234, mtu: 16000))
+        let stream = try TunnelTCPTransport(tunnel: tunnel)
+        try await stream.connect(timeout: 1)
+        let data = Data(repeating: 0x5a, count: 65_535)
+        try await stream.send(data, timeout: 1)
+        let received = await carrier.received
+        XCTAssertEqual(received, data, "A peer delaying ACKs until two segments must accept the full upload")
+        let bursts = await carrier.bursts
+        XCTAssertTrue(bursts.contains(where: { $0 > 1024 }))
+    }
+    func testBulkUploadRespectsSmallWindowAndIgnoresStaleAcks() async throws {
+        let carrier = BulkTunnelPeer(window: 2048, staleAcks: true)
+        let tunnel = TrustedTunnel(transport: carrier, configuration: TunnelConfiguration(clientAddress: "fd00::1", serverAddress: "fd00::2", rsdPort: 1234, mtu: 16000))
+        let stream = try TunnelTCPTransport(tunnel: tunnel)
+        try await stream.connect(timeout: 1)
+        try await stream.send(Data(repeating: 1, count: 7_000), timeout: 1)
+        try await stream.send(Data(repeating: 2, count: 3_000), timeout: 1)
+        let received = await carrier.received
+        XCTAssertEqual(received, Data(repeating: 1, count: 7_000) + Data(repeating: 2, count: 3_000))
+        let bursts = await carrier.bursts
+        XCTAssertTrue(bursts.allSatisfy { $0 <= 2048 })
+    }
+    func testMissingBulkAcknowledgementFailsInsteadOfReportingSuccess() async throws {
+        let carrier = BulkTunnelPeer(dropAcks: true)
+        let tunnel = TrustedTunnel(transport: carrier, configuration: TunnelConfiguration(clientAddress: "fd00::1", serverAddress: "fd00::2", rsdPort: 1234, mtu: 16000))
+        let stream = try TunnelTCPTransport(tunnel: tunnel)
+        try await stream.connect(timeout: 1)
+        do { try await stream.send(Data(repeating: 1, count: 32_768), timeout: 0.1); XCTFail("Missing ACK must fail") }
+        catch { XCTAssertEqual(error as? TVPairError, .timeout) }
+    }
     func testInterleavedRSDDataIsBufferedWhileOpeningDeveloperStream() async throws {
         let carrier = TunnelPeerTransport()
         let tunnel = TrustedTunnel(transport: carrier, configuration: TunnelConfiguration(clientAddress: "fd00::1", serverAddress: "fd00::2", rsdPort: 1234, mtu: 16000))
@@ -29,6 +61,52 @@ final class TunnelTests: XCTestCase {
         let tunnel = TrustedTunnel(transport: carrier, configuration: TunnelConfiguration(clientAddress: "fd00::1", serverAddress: "fd00::2", rsdPort: 1234, mtu: 16000))
         do { try await TunnelTCPTransport(tunnel: tunnel).connect(timeout: 1); XCTFail("Invalid packet must fail") }
         catch { XCTAssertEqual(error as? TVPairError, .malformed("TCP length or checksum")) }
+    }
+}
+
+/// A delayed-ACK receiver: no response for the first data segment. Reads on
+/// an empty carrier model its bounded read deadline expiring.
+private actor BulkTunnelPeer: ByteTransport {
+    let window: UInt16
+    let staleAcks: Bool
+    let dropAcks: Bool
+    var received = Data(), output = Data()
+    var bursts: [Int] = []
+    private var burst = 0, segments = 0
+    private var expected: UInt32 = 0
+    init(window: UInt16 = 65535, staleAcks: Bool = false, dropAcks: Bool = false) {
+        self.window = window; self.staleAcks = staleAcks; self.dropAcks = dropAcks
+    }
+    func connect(timeout: TimeInterval) async throws {}
+    nonisolated func cancel() {}
+    func send(_ data: Data, timeout: TimeInterval) async throws {
+        let segment = try IPv6TCPPacket.parse(data)
+        func reply(_ acknowledgement: UInt32, flags: UInt8) -> Data {
+            var packet = IPv6TCPPacket.make(source: data.subdata(in: 24..<40), destination: data.subdata(in: 8..<24), sourcePort: segment.destinationPort, destinationPort: segment.sourcePort, sequence: flags == 0x12 ? 100 : 101, acknowledgement: acknowledgement, flags: flags, payload: Data())
+            packet[54] = UInt8(window >> 8); packet[55] = UInt8(window & 255)
+            packet[56] = 0; packet[57] = 0
+            let tcp = packet.subdata(in: 40..<packet.count)
+            let checksum = IPv6TCPPacket.checksum(packet.subdata(in: 8..<40) + IPv6TCPPacket.be(UInt32(tcp.count)) + Data([0, 0, 0, 6]) + tcp)
+            packet[56] = UInt8(checksum >> 8); packet[57] = UInt8(checksum & 255)
+            return packet
+        }
+        if segment.flags & 2 != 0 {
+            expected = segment.sequence &+ 1; output += reply(expected, flags: 0x12); return
+        }
+        guard !segment.payload.isEmpty else { return }
+        guard segment.sequence == expected else { throw TVPairError.malformed("test peer sequence") }
+        received += segment.payload; expected &+= UInt32(segment.payload.count)
+        burst += segment.payload.count; segments += 1
+        guard burst <= Int(window) else { throw TVPairError.malformed("sender exceeded advertised window") }
+        if !dropAcks, segments % 2 == 0 || segment.flags & 8 != 0 {
+            if staleAcks { output += reply(expected &- UInt32(burst) &- 1, flags: 0x10) }
+            output += reply(expected, flags: 0x10)
+        }
+        if segment.flags & 8 != 0 { bursts.append(burst); burst = 0; segments = 0 }
+    }
+    func readExactly(_ count: Int, timeout: TimeInterval) async throws -> Data {
+        guard timeout > 0, output.count >= count else { throw TVPairError.timeout }
+        let data = Data(output.prefix(count)); output.removeFirst(count); return data
     }
 }
 

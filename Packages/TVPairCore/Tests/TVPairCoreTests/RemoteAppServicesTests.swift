@@ -73,7 +73,10 @@ final class RemoteAppServicesTests: XCTestCase {
         var replies = afc(0, 14, RemoteAFC.u64(7))
         for sequence in 1...4 { replies += afc(UInt64(sequence), 1, RemoteAFC.u64(0)) }
         let wire = AppWire(replies)
-        try await RemoteAFC(stream: wire).upload(file, path: "PublicStaging/test.ipa")
+        let progress = UploadProgressRecorder()
+        try await RemoteAFC(stream: wire).upload(file, path: "PublicStaging/test.ipa") { event in await progress.record(event) }
+        let completed = await progress.completed
+        XCTAssertEqual(completed, [0, 32_768, 65_536, 70_000], "Count only bytes acknowledged by AFC")
         var bytes = wire.sent
         var writes = 0, totalPayload = 0
         while !bytes.isEmpty {
@@ -89,15 +92,58 @@ final class RemoteAppServicesTests: XCTestCase {
         XCTAssertEqual(writes, 3); XCTAssertEqual(totalPayload, 70_000)
         XCTAssertEqual(wire.remaining, 0)
     }
+    func testRejectedWriteStopsProgressAndAbortsWithoutWaitingForCleanup() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data(repeating: 1, count: 100).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let wire = AppWire(afc(0, 14, RemoteAFC.u64(7)) + afc(1, 1, RemoteAFC.u64(18)))
+        let progress = UploadProgressRecorder()
+        do {
+            try await RemoteAFC(stream: wire).upload(file, path: "PublicStaging/test.ipa") { event in await progress.record(event) }
+            XCTFail("Rejected bytes cannot become a successful upload")
+        } catch TVInstallationError.afcStatus(18) {} catch { XCTFail("Unexpected error: \(error)") }
+        let completed = await progress.completed
+        XCTAssertEqual(completed, [0])
+        XCTAssertTrue(wire.cancelled)
+        // No response for FILE_CLOSE is supplied; the original error must return.
+        XCTAssertEqual(wire.remaining, 0)
+    }
+    func testUploadDeadlineExpiresWithoutSendingIPABytes() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data(repeating: 1, count: 100).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let wire = AppWire(afc(0, 14, RemoteAFC.u64(7)))
+        do {
+            try await RemoteAFC(stream: wire).upload(file, path: "PublicStaging/test.ipa", deadline: .distantPast)
+            XCTFail("Expired upload must fail")
+        } catch { XCTAssertEqual(error as? TVPairError, .timeout) }
+        XCTAssertTrue(wire.cancelled)
+    }
+    func testUploadFailureKeepsStageAndReasonAcrossNSErrorBridge() {
+        let error = TVInstallationError.uploadFailed(stage: "transferring the IPA", detail: "The peer closed the connection.") as NSError
+        XCTAssertEqual(error.domain, TVInstallationError.errorDomain)
+        XCTAssertTrue(error.localizedDescription.contains("transferring the IPA"))
+        XCTAssertTrue(error.localizedDescription.contains("The peer closed"))
+        XCTAssertTrue(error.localizedDescription.contains("Installation was not requested"))
+    }
+}
+
+private actor UploadProgressRecorder {
+    var completed: [Int64] = []
+    func record(_ event: TVUploadProgress) {
+        if case let .uploading(bytes, _) = event { completed.append(bytes) }
+    }
 }
 
 private final class AppWire: ByteTransport, @unchecked Sendable {
     private let lock = NSLock()
     private var input: Data
     private var output = Data()
+    private var didCancel = false
     init(_ input: Data) { self.input = input }
     var sent: Data { lock.withLock { output } }
     var remaining: Int { lock.withLock { input.count } }
+    var cancelled: Bool { lock.withLock { didCancel } }
     func connect(timeout: TimeInterval) async throws {}
     func send(_ data: Data, timeout: TimeInterval) async throws { lock.withLock { output.append(data) } }
     func readExactly(_ count: Int, timeout: TimeInterval) async throws -> Data {
@@ -106,5 +152,5 @@ private final class AppWire: ByteTransport, @unchecked Sendable {
             let value = Data(input.prefix(count)); input.removeFirst(count); return value
         }
     }
-    func cancel() {}
+    func cancel() { lock.withLock { didCancel = true } }
 }

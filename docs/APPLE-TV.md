@@ -81,6 +81,26 @@ simultaneous per-TV app libraries are not implemented.
 
 ## Restrictions and remaining hardware validation
 
+### Upload diagnostics
+
+My Apps shows the current upload stage and accepted byte count above the app
+list. Console lines prefixed `[AppleTVUpload]` record the file-service connection,
+directory setup, file opening, transfer progress, close, and failure. Byte counts
+advance only after AFC accepts a write; upload completion does not mean the app
+has been installed. Installation still requires its separate completion and
+inventory checks.
+
+The tunnel sends bounded bursts within the TV's advertised TCP window instead
+of waiting for an ACK after every 1 KiB segment. RSD service check-in replies
+have 15-second read deadlines; each AFC request has a shared 30-second I/O budget,
+and IPA transfer has a 15-minute overall budget. A failed upload aborts its
+carrier and returns an error without replaying writes or waiting for cleanup on
+the failed stream. An interrupted upload can leave a partial staging file on the
+TV. Pairing credentials are preserved. For a failed physical test, report the
+last upload stage and accepted byte count with the new error message.
+
+### Hardware checklist
+
 - The TV must expose the POC's Remote Pairing services and accept the on-screen
   code. Discovery names are unauthenticated hints. Client isolation, sleeping
   TVs, Bonjour filtering, or denied Local Network access can stop setup.

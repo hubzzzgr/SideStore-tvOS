@@ -1,7 +1,11 @@
 import Foundation
 
-public enum TVInstallationError: Error, LocalizedError {
+public enum TVInstallationError: Error, LocalizedError, CustomNSError {
     case missingService(String), protocolFailure(String), deviceRejected(String), afcStatus(UInt64), busy
+    case uploadFailed(stage: String, detail: String)
+    public static var errorDomain: String { "SideTVstore.TVInstallation" }
+    public var errorCode: Int { if case .uploadFailed = self { return 2 }; return 1 }
+    public var errorUserInfo: [String: Any] { [NSLocalizedDescriptionKey: errorDescription ?? "Apple TV operation failed."] }
     public var errorDescription: String? {
         switch self {
         case let .missingService(name): return "The Apple TV does not advertise \(name). Pairing alone does not permit installation. Its developer services or developer image may be unavailable on this tvOS version."
@@ -9,8 +13,13 @@ public enum TVInstallationError: Error, LocalizedError {
         case let .deviceRejected(code): return "Apple TV rejected the operation: \(code)."
         case let .afcStatus(code): return "Apple TV AFC returned status \(code)."
         case .busy: return "Another Apple TV operation is in progress."
+        case let .uploadFailed(stage, detail): return "Apple TV upload failed while \(stage). \(detail) Installation was not requested. Keep both devices awake on the same Wi-Fi and retry."
         }
     }
+}
+
+public enum TVUploadProgress: Sendable {
+    case openingService, preparingDirectory, openingFile, uploading(completed: Int64, total: Int64), closingFile, complete
 }
 
 /// Lockdown-style plists on an authenticated RSD service. The two check-in
@@ -22,11 +31,11 @@ actor RemotePlistService {
     func open() async throws {
         try await stream.connect(timeout: 10)
         try await send(["Label": "SideStoreTV", "ProtocolVersion": "2", "Request": "RSDCheckin"])
-        let checkin = try await receive()
+        let checkin = try await receive(timeout: 15)
         guard checkin["Request"] as? String == "RSDCheckin", checkin["Error"] == nil else {
             throw TVInstallationError.protocolFailure("RSD check-in")
         }
-        let start = try await receive()
+        let start = try await receive(timeout: 15)
         try Self.checkError(start)
         guard start["Request"] as? String == "StartService" else {
             throw TVInstallationError.protocolFailure("RSD StartService")
@@ -44,13 +53,15 @@ actor RemotePlistService {
             try await stream.send(data.subdata(in: offset..<min(offset + 32_768, data.count)), timeout: 30)
         }
     }
-    func receive() async throws -> [String: Any] {
-        let header = try await stream.readExactly(4, timeout: 120)
+    func receive(timeout: TimeInterval = 120) async throws -> [String: Any] {
+        let deadline = Date().addingTimeInterval(timeout)
+        let header = try await stream.readExactly(4, timeout: timeout)
         let length = header.reduce(0) { ($0 << 8) | Int($1) }
         guard (1...16_777_216).contains(length) else { throw TVInstallationError.protocolFailure("plist length") }
         var data = Data()
         while data.count < length {
-            data += try await stream.readExactly(min(65_536, length - data.count), timeout: 120)
+            guard deadline > Date() else { throw TVPairError.timeout }
+            data += try await stream.readExactly(min(65_536, length - data.count), timeout: deadline.timeIntervalSinceNow)
         }
         guard let value = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
             throw TVInstallationError.protocolFailure("plist dictionary")
@@ -88,13 +99,15 @@ actor RemoteAFC {
     init(stream: any ByteTransport) { self.stream = stream }
     static func u64(_ value: UInt64) -> Data { XPCCodec.le(value, count: 8) }
     static func number(_ data: Data, _ offset: Int = 0) -> UInt64 { XPCCodec.number(data, offset, count: 8) }
-    func request(_ operation: UInt64, header: Data = Data(), payload: Data = Data(), accepting: Set<UInt64> = [1]) async throws -> Data {
+    func request(_ operation: UInt64, header: Data = Data(), payload: Data = Data(), accepting: Set<UInt64> = [1], timeout: TimeInterval = 30) async throws -> Data {
         try Task.checkCancellation()
+        let deadline = Date().addingTimeInterval(timeout)
         let id = sequence; sequence &+= 1
         let bytes = Data("CFA6LPAA".utf8) + Self.u64(UInt64(40 + header.count + payload.count)) + Self.u64(UInt64(40 + header.count)) + Self.u64(id) + Self.u64(operation) + header + payload
         guard bytes.count <= 65_535 else { throw TVInstallationError.protocolFailure("AFC request size") }
-        try await stream.send(bytes, timeout: 60)
-        let response = try await stream.readExactly(40, timeout: 60)
+        try await stream.send(bytes, timeout: timeout)
+        guard deadline > Date() else { throw TVPairError.timeout }
+        let response = try await stream.readExactly(40, timeout: deadline.timeIntervalSinceNow)
         guard response.prefix(8) == Data("CFA6LPAA".utf8), Self.number(response, 24) == id else {
             throw TVInstallationError.protocolFailure("AFC sequence")
         }
@@ -102,7 +115,8 @@ actor RemoteAFC {
         guard total >= 40, total <= 1_048_576, current >= 40, current <= total else {
             throw TVInstallationError.protocolFailure("AFC response length")
         }
-        let body = try await stream.readExactly(Int(total - 40), timeout: 60)
+        guard deadline > Date() else { throw TVPairError.timeout }
+        let body = try await stream.readExactly(Int(total - 40), timeout: deadline.timeIntervalSinceNow)
         if opcode == 1 {
             guard body.count == 8 else { throw TVInstallationError.protocolFailure("AFC status") }
             let status = Self.number(body)
@@ -124,18 +138,31 @@ actor RemoteAFC {
         }
     }
     func remove(_ path: String) async throws { _ = try await request(8, header: Data(path.utf8) + Data([0])) }
-    func upload(_ url: URL, path: String) async throws {
-        let opened = try await request(13, header: Self.u64(3) + Data(path.utf8) + Data([0]), accepting: [14])
-        guard opened.count == 8 else { throw TVInstallationError.protocolFailure("AFC file handle") }
+    func upload(_ url: URL, path: String, deadline: Date = Date().addingTimeInterval(900), progress: @Sendable (TVUploadProgress) async throws -> Void = { _ in }) async throws {
         let file = try FileHandle(forReadingFrom: url)
         defer { try? file.close() }
+        let length = try file.seekToEnd()
+        guard length > 0, length <= UInt64(Int64.max) else { throw TVInstallationError.protocolFailure("IPA file size") }
+        try file.seek(toOffset: 0)
+        try await progress(.openingFile)
+        let opened = try await request(13, header: Self.u64(3) + Data(path.utf8) + Data([0]), accepting: [14])
+        guard opened.count == 8 else { throw TVInstallationError.protocolFailure("AFC file handle") }
         do {
+            var completed: Int64 = 0
+            try await progress(.uploading(completed: 0, total: Int64(length)))
             while let bytes = try file.read(upToCount: 32_768), !bytes.isEmpty {
-                _ = try await request(16, header: opened, payload: bytes)
+                guard deadline > Date() else { throw TVPairError.timeout }
+                _ = try await request(16, header: opened, payload: bytes, timeout: min(30, deadline.timeIntervalSinceNow))
+                completed += Int64(bytes.count)
+                try await progress(.uploading(completed: completed, total: Int64(length)))
             }
+            guard completed == Int64(length) else { throw TVInstallationError.protocolFailure("IPA size changed during upload") }
+            try await progress(.closingFile)
             _ = try await request(20, header: opened)
         } catch {
-            _ = try? await request(20, header: opened)
+            // Never spend further read timeouts cleaning up a failed stream.
+            // A transport failure invalidates this carrier; do not replay writes.
+            stream.cancel()
             throw error
         }
     }
@@ -172,16 +199,29 @@ extension DeveloperConnection {
         guard developerVerified else { throw TVInstallationError.missingService("a responding developer service") }
         operating = true
     }
-    public func stageIPA(_ url: URL) async throws -> String {
+    public func stageIPA(_ url: URL, progress: @Sendable (TVUploadProgress) async throws -> Void = { _ in }) async throws -> String {
         try beginAppOperation(); defer { operating = false }
         let directory = "PublicStaging/SideStoreTV-" + UUID().uuidString
         let path = directory + "/Application.ipa"
-        return try await usingService("com.apple.afc.shim.remote") { service in
-            let afc = RemoteAFC(stream: service.stream)
-            try await afc.directory("PublicStaging")
-            try await afc.directory(directory)
-            do { try await afc.upload(url, path: path); return path }
-            catch { try? await afc.remove(path); try? await afc.remove(directory); throw error }
+        var stage = "opening the file service"
+        do {
+            try await progress(.openingService)
+            let result = try await usingService("com.apple.afc.shim.remote") { service in
+                let afc = RemoteAFC(stream: service.stream)
+                stage = "creating the staging directory"
+                try await progress(.preparingDirectory)
+                try await afc.directory("PublicStaging")
+                try await afc.directory(directory)
+                stage = "transferring or closing the IPA"
+                try await afc.upload(url, path: path, progress: progress)
+                return path
+            }
+            try await progress(.complete)
+            return result
+        } catch {
+            tunnel.transport.cancel()
+            if error is CancellationError { throw error }
+            throw TVInstallationError.uploadFailed(stage: stage, detail: error.localizedDescription)
         }
     }
     public func removeStagedIPA(_ path: String) async throws {
