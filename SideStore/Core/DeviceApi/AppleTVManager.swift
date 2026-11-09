@@ -115,7 +115,7 @@ final class AppleTVManager: ObservableObject {
         finishPIN(.success(pin))
     }
     func cancelSetup() {
-        operation?.cancel(); transport?.cancel(); finishPIN(.failure(CancellationError()))
+        operation?.cancel(); connecting?.cancel(); transport?.cancel(); finishPIN(.failure(CancellationError()))
     }
     private func endpoint(for record: PairingRecord) async throws -> ConnectionEndpoint {
         if !discovery.scanning { discovery.start() }

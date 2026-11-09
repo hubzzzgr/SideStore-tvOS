@@ -56,7 +56,7 @@ New native clients implement the RSD two-reply check-in and:
 | --- | --- |
 | `com.apple.afc.shim.remote` | Real GetDeviceInfo probe, bounded file upload to a unique PublicStaging directory, cleanup and service FIN |
 | `com.apple.mobile.installation_proxy.shim.remote` | Lookup probe; Install or Upgrade according to inventory; explicit Complete followed by inventory presence; Uninstall followed by inventory absence |
-| `com.apple.misagent.shim.remote` | Provisioning-profile installation/removal; numeric zero status required for refresh success |
+| `com.apple.misagent.shim.remote` | Provisioning-profile installation/removal; numeric zero status and profile inventory confirmation required for refresh success |
 
 Service ports come exclusively from authenticated RSD. The fork never assumes
 fixed app-service ports, and never sends pairing messages to AirPlay/Companion.
@@ -97,7 +97,7 @@ simultaneous per-TV app libraries are not implemented.
   restrictions still apply. Free-account tvOS profile issuance must be tested
   with the user's account; this fork does not promise Apple will issue it.
   The absence of paid CI credentials does not waive runtime provisioning rules.
-- Local anisette is enforced. Its libraries may be downloaded once during
+- Signing private keys are not embedded in TV app payloads. Local anisette is enforced. Its libraries may be downloaded once during
   initial setup and then reused from protected app storage. There is no runtime
   anisette/signing/install relay server. Apple's authentication/provisioning
   services still require Internet access, as do optional source/IPA downloads.

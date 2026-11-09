@@ -445,21 +445,8 @@ public extension UserDefaults
         set { self.set(newValue, forKey: "preferredAppSorting") }
     }
     
-    @nonobjc var activeAppsLimit: Int? {
-        get {
-            return self._activeAppsLimit?.intValue
-        }
-        set {
-            if let value = newValue
-            {
-                self._activeAppsLimit = NSNumber(value: value)
-            }
-            else
-            {
-                self._activeAppsLimit = nil
-            }
-        }
-    }
+    // Runtime tvOS account/device limits are enforced by Apple and the TV.
+    @nonobjc var activeAppsLimit: Int? { get { nil } set {} }
     
     @objc var isCellularRefreshEnabled: Bool {
         get { self.bool(forKey: #function) }

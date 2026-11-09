@@ -75,7 +75,7 @@ public enum OperationError: LocalizedError, CustomNSError, Sendable, Equatable {
         case .invalidApp(let reason):
             return "The app is in an invalid format: \(reason)"
         case .invalidPairingFile(let reason):
-            return "The current pairing file is invalid. Reason: \(reason)\n\nPlease make sure to input a valid pairing file! If the issue persists, replace your pairing with iloader or idevice_pair."
+            return "Apple TV pairing is invalid: \(reason)\n\nReconnect or pair the Apple TV in Settings."
         case .invalidParameters(let msg):
             return "Invalid parameters: \n\(msg)"
         case .invalidResponse(let reason):
@@ -120,7 +120,7 @@ public enum OperationError: LocalizedError, CustomNSError, Sendable, Equatable {
     public var recoverySuggestion: String? {
         switch self {
         case .invalidPairingFile:
-            return NSLocalizedString("Import a valid mobiledevicepairing file.", comment: "")
+            return NSLocalizedString("Pair or reconnect to an Apple TV in Settings.", comment: "")
         case .noConnection:
             return NSLocalizedString("Connect to a Wi-Fi network, Bridge or a Wired network connection!", comment: "")
         default:

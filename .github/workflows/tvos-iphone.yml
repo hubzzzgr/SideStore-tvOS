@@ -23,16 +23,12 @@ jobs:
           mkdir -p artifacts
           xcodebuild -version | tee artifacts/toolchain.txt
           swift --version | tee -a artifacts/toolchain.txt
-      - name: Fetch and verify OpenSSL release
+      - name: Fetch and verify pinned binary releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/tvopenssl" Packages/TVPairCore/Vendor
-          gh release download 3.6.5000 -R krzyzanowskim/OpenSSL \
-            --pattern OpenSSL.xcframework.zip --dir "$RUNNER_TEMP/tvopenssl"
-          echo "f50188506490c643715489217d32e458d06cee5579399ff616f0ce2038169fea  $RUNNER_TEMP/tvopenssl/OpenSSL.xcframework.zip" | shasum -a 256 -c -
-          unzip -q "$RUNNER_TEMP/tvopenssl/OpenSSL.xcframework.zip" -d Packages/TVPairCore/Vendor
+          python3 scripts/ci/prepare-tv-binaries.py
       - name: Protocol tests
         run: |
           set -o pipefail

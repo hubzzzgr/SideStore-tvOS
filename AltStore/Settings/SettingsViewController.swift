@@ -1356,7 +1356,7 @@ extension SettingsViewController
                 hostingController.title = NSLocalizedString("Developer Options", comment: "")
                 self.prepare(for: UIStoryboardSegue(identifier: "diagnostics", source: self, destination: hostingController), sender: nil)
             case .experimentalFeatures:
-                let experimentalFeaturesView = ExperimentalFeaturesView()
+                let experimentalFeaturesView = AppleTVSetupView()
                 let hostingController = UIHostingController(rootView: experimentalFeaturesView)
                 hostingController.view.backgroundColor = .settingsBackground
                 hostingController.title = NSLocalizedString("Experimental Features", comment: "")
