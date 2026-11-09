@@ -169,7 +169,9 @@ These optional images are cached for offline display. App operations take
 priority over icon retrieval; unavailable artwork falls back to an Apple TV
 symbol without leaving an indefinite spinner.
 
-The `Build Apple TV controller IPA` workflow runs on GitHub-hosted `macos-15`.
+The `Build Apple TV controller IPA` workflow runs on GitHub-hosted `macos-15-intel`
+after arm64 hosted-runner capacity failures. The output still targets arm64
+physical iPhones; the runner CPU does not change the target platform.
 It selects Xcode 26.3, verifies the pinned binary checksums, runs native protocol tests,
 archives `generic/platform=iOS` with `ARCHS=arm64` and signing disabled, strips
 distributor signatures from the packaged copy, and uploads the IPA, SHA-256 and

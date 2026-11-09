@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   iphone:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
           path: |
             ~/Library/Developer/Xcode/DerivedData
             Packages/TVPairCore/.build
-          key: tvos-xcode26.3-v1-${{ hashFiles('**/Package.resolved') }}
+          key: tvos-xcode26.3-${{ runner.arch }}-v2-${{ hashFiles('**/Package.resolved') }}
       - name: Toolchain
         run: |
           mkdir -p artifacts
