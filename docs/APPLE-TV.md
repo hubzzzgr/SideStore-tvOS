@@ -1,4 +1,4 @@
-# SideStore TV controller fork
+# SideTVstore controller fork
 
 This is an experimental **iPhone application managing a remote Apple TV**.
 It retains SideStore's Apple ID login, certificates, bundle IDs, signing,
@@ -12,18 +12,19 @@ that POC and do not establish installation support in this fork.
 
 ## Setup and use
 
-1. Download `SideStoreTV-unsigned-iphone-arm64` from the fork's Actions artifacts.
+1. Download `SideTVstore-unsigned-iphone-arm64` from the fork's Actions artifacts.
    Its IPA targets physical arm64 iPhones (iOS 17+). Sign/install the controller
    using your initial installation method. An unsigned IPA cannot be installed
    directly by iOS. CI needs no Apple ID, certificate, profile, or paid membership.
 2. Put the iPhone and TV on the same LAN, allow Local Network access, and open
    **Settings → Remotes and Devices → Remote App and Devices** on Apple TV.
-3. Open the **Apple TV** tab. Select a discovered TV or enter its numeric IP.
-   Tap **Pair and enable developer access**, and enter the code displayed on TV.
+3. Open the **Apple TV** tab and tap your TV under **Nearby Apple TVs**.
+   If discovery cannot find it, expand **Can’t Find Your TV?** to enter its IP.
+   Enter the code displayed on TV and tap **Confirm Code**.
    This automatically runs the POC's computer-host developer-trust procedure.
    There is no separate instruction to enable developer access manually when
    the procedure and subsequent developer-service checks succeed.
-4. Wait for **Developer access and installation services verified**. Pairing,
+4. Wait for **Ready to Install**. Pairing,
    Keychain persistence, saved-record verification, TLS/CDTunnel, developer
    service response, and app-service availability are separate gates.
 5. Sign in with your Apple ID in Settings. Registration uses the **TV UDID**
@@ -97,9 +98,11 @@ simultaneous per-TV app libraries are not implemented.
   restrictions still apply. Free-account tvOS profile issuance must be tested
   with the user's account; this fork does not promise Apple will issue it.
   The absence of paid CI credentials does not waive runtime provisioning rules.
-- Signing private keys are not embedded in TV app payloads. Local anisette is enforced. Its libraries may be downloaded once during
+- Signing private keys are not embedded in TV app payloads. Local anisette is the default. Its libraries may be downloaded once during
   initial setup and then reused from protected app storage. There is no runtime
-  anisette/signing/install relay server. Apple's authentication/provisioning
+  anisette/signing/install relay server required by default. Settings includes
+  Anisette Servers and User Customizations; users can disable On-Device Anisette
+  there to use their selected remote anisette server instead. Apple's authentication/provisioning
   services still require Internet access, as do optional source/IPA downloads.
 - iOS background execution is opportunistic. Keep the controller foregrounded
   and the TV awake for initial testing. Automatic unattended seven-day refresh

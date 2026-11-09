@@ -88,7 +88,7 @@ extension SettingsViewController
         case userCustomizations     // row 11 - User Customizations
 
         static var allCases: [AdvancedSettingsRow] {
-            let rows: [AdvancedSettingsRow] = [.pairingFileManagement, .developerServices, .profileManagement, .certificateManagement]
+            let rows: [AdvancedSettingsRow] = [.pairingFileManagement, .anisetteServers, .developerServices, .profileManagement, .certificateManagement, .userCustomizations]
             return rows
         }
     }
@@ -1337,7 +1337,7 @@ extension SettingsViewController
                 self.prepare(for: UIStoryboardSegue(identifier: "diagnostics", source: self, destination: vc), sender: nil)
                 
             case .userCustomizations:
-                let userCustomizationsView = AppleTVSetupView()
+                let userCustomizationsView = UserCustomizationsView()
                 let vc = UIHostingController(rootView: userCustomizationsView)
                 vc.view.backgroundColor = .settingsBackground
                 vc.title = NSLocalizedString("User Customizations", comment: "")

@@ -14,7 +14,7 @@ CODE_SIGN_ENTITLEMENTS = ./AltStore/AltStoreFree.entitlements
 // Codesigning settings defined optionally, see `CodeSigning.xcconfig.example`
 #include? "CodeSigning.xcconfig"
 
-PRODUCT_NAME = SideStore
+PRODUCT_NAME = SideTVstore
 
 BASE_BUNDLE_ID                                  = $(ORG_IDENTIFIER).SideStore
 MAIN_BUNDLE_IDENTIFIER[config=Debug]            = $(BASE_BUNDLE_ID).$(DEVELOPMENT_TEAM)

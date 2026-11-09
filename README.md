@@ -1,4 +1,4 @@
-# SideStore TV — iPhone controller for Apple TV
+# SideTVstore — iPhone controller for Apple TV
 
 Experimental SideStore fork for signing and managing tvOS IPAs over local Wi-Fi, using the Apple TV pairing procedure from [TVPair](https://github.com/hubzzzgr/tvOS-pairtest). No LocalDevVPN or local loopback VPN dependency.
 
