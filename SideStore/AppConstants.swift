@@ -11,9 +11,7 @@ import SideSign
 
 public enum AppConstants {
     // features required for functioning
-    public static let mandatoryFeatures: Set<ALTFeature> = [
-        .appGroups
-    ]
+    public static let mandatoryFeatures: Set<ALTFeature> = []
 
     public enum Database {
         public static let name           = "SideStore"

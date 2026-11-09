@@ -239,7 +239,6 @@ final class AppleTVManager: ObservableObject {
         guard let path = staged.removeValue(forKey: bundleID), let developer else { throw OperationError.invalidParameters("No package has been staged on the selected Apple TV.") }
         do {
             try await developer.install(stagedPath: path, bundleIdentifier: bundleID)
-            UserDefaults.standard.set(selectedID?.uuidString, forKey: "AppleTV.managedTarget")
             try? await developer.removeStagedIPA(path)
         } catch {
             try? await developer.removeStagedIPA(path)

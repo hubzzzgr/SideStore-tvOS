@@ -3,10 +3,11 @@ import XCTest
 
 final class TVOSExecutableTests: XCTestCase {
     private func executable(platform: UInt64 = 3, encrypted: Bool = false) -> Data {
-        let u = { (x: UInt64) in XPCCodec.le(x) }
-        var data = u(0xfeedfacf) + u(0x0100000c) + u(0) + u(2) + u(encrypted ? 2 : 1) + u(encrypted ? 48 : 24) + u(0) + u(0)
-        data += u(0x32) + u(24) + u(platform) + u(0) + u(0) + u(0)
-        if encrypted { data += u(0x2c) + u(24) + u(0) + u(0) + u(1) + u(0) }
+        var words: [UInt64] = [0xfeedfacf, 0x0100000c, 0, 2, encrypted ? 2 : 1, encrypted ? 48 : 24, 0, 0]
+        words += [0x32, 24, platform, 0, 0, 0]
+        if encrypted { words += [0x2c, 24, 0, 0, 1, 0] }
+        var data = Data()
+        for word in words { data.append(XPCCodec.le(word)) }
         return data
     }
     func testAcceptsDeviceTVOSExecutable() throws { try TVOSExecutable.validate(executable()) }

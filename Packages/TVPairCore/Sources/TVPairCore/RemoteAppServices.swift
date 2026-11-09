@@ -136,6 +136,9 @@ actor RemoteAFC {
 extension DeveloperConnection {
     func appService(_ name: String) async throws -> RemotePlistService {
         guard let port = Self.port(availableServices[name]) else { throw TVInstallationError.missingService(name) }
+        guard availableServices[name]?.dictionary?["Properties"]?.dictionary?["UsesRemoteXPC"] != .bool(true) else {
+            throw TVInstallationError.protocolFailure("unsupported RemoteXPC transport for \(name)")
+        }
         let stream = try TunnelTCPTransport(tunnel: tunnel, port: port)
         let client = RemotePlistService(stream: stream)
         do { try await client.open() }
@@ -229,6 +232,15 @@ extension DeveloperConnection {
             try RemotePlistService.checkError(response)
             guard let status = response["Status"] as? NSNumber else { throw TVInstallationError.protocolFailure("misagent status") }
             guard status.intValue == 0 else { throw TVInstallationError.deviceRejected("misagent status \(status.intValue)") }
+            if let expected = request["Profile"] as? Data {
+                try await client.send(["MessageType": "CopyAll", "ProfileType": "Provisioning"])
+                let installed = try await client.receive()
+                try RemotePlistService.checkError(installed)
+                guard (installed["Status"] as? NSNumber)?.intValue == 0,
+                      let profiles = installed["Payload"] as? [Data], profiles.contains(expected) else {
+                    throw TVInstallationError.protocolFailure("post-refresh profile inventory")
+                }
+            }
         }
     }
 }

@@ -39,6 +39,7 @@ jobs:
           export TVPAIR_OPENSSL_CLI="$(brew --prefix openssl@3)/bin/openssl"
           swift test --package-path Packages/TVPairCore 2>&1 | tee artifacts/protocol-tests.log
       - name: Archive physical iPhone app without credentials
+        if: ${{ !cancelled() }}
         run: |
           set -o pipefail
           xcodebuild -project AltStore.xcodeproj -scheme SideStore -configuration Release \

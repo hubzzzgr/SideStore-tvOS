@@ -10,9 +10,6 @@ import Foundation
 import SideSign
 
 struct OperationEntitlements {
-    static let defaultAdditionalEntitlements: [ALTEntitlement: any Sendable] = [
-        .increasedDebuggingMemoryLimit  : ALTEntitlement.increasedDebuggingMemoryLimit,
-        .increasedMemoryLimit           : ALTEntitlement.increasedMemoryLimit,
-        .extendedVirtualAddressing      : ALTEntitlement.extendedVirtualAddressing
-    ]
+    // The target app and its tvOS profile define entitlements.
+    static let defaultAdditionalEntitlements: [ALTEntitlement: any Sendable] = [:]
 }

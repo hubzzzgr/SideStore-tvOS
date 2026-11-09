@@ -82,34 +82,9 @@ final class AppManager: ObservableObject, @unchecked Sendable
                 let installedApps = InstalledApp.all(in: dbBackgroundContext)
                 var altStore: InstalledApp?
 
-                #if !targetEnvironment(simulator)
-                let legacyApps = Set(UserDefaults.standard.legacySideloadedApps ?? [])
-
-                for app in installedApps {
-                    if app.bundleIdentifier == StoreApp.altstoreAppID {
-                        altStore = app
-                        continue
-                    }
-
-                    guard app.isActive, !self.isActivelyManagingApp(withBundleID: app.bundleIdentifier) else { continue }
-
-                    let isDeclared = UTType(app.installedAppUTI)?.isDeclared ?? false
-                    guard !isDeclared, !legacyApps.contains(app.bundleIdentifier) else { continue }
-
-                    CacheResignedMetadataOperation.clearCustomizations(for: app)
-                    dbBackgroundContext.delete(app)
-                    if var patched = UserDefaults.standard.patchedApps {
-                        patched.removeAll { $0 == app.bundleIdentifier }
-                        UserDefaults.standard.patchedApps = patched
-                    }
-                }
-
-                if dbBackgroundContext.hasChanges {
-                    try dbBackgroundContext.save()
-                }
-                #else
-                altStore = installedApps.first { $0.bundleIdentifier == StoreApp.altstoreAppID }
-                #endif
+                // Remote apps are never inferred from iPhone UTI registrations.
+                // Keep cached records when the TV is offline or an app was removed
+                // externally, so the original IPA remains available for reinstall.
 
                 let active = installedApps.filter { !$0.isDeleted }
                 let ids = Set(active.map(\.resignedBundleIdentifier))

@@ -251,16 +251,22 @@ final class PipelineRunner: Sendable
             // persist the result
             let bundleID = result.bundleIdentifier
             let dbContext = group.dbContext
+            let targetID = await AppleTVManager.shared.selectedID?.uuidString
             do {
                 try await dbContext.perform {
                     let hasChanges = dbContext.hasChanges
                     if hasChanges {
                         try dbContext.save()
                     }
+                    if InstalledApp.all(in: dbContext).contains(where: { !$0.isDeleted && $0.bundleIdentifier != StoreApp.altstoreAppID }) {
+                        UserDefaults.standard.set(targetID, forKey: "AppleTV.managedTarget")
+                    } else {
+                        UserDefaults.standard.removeObject(forKey: "AppleTV.managedTarget")
+                    }
                     debugLog("[AppManager] performOperation: Context changes were saved for installedApp: \(bundleID)")
                 }
             } catch {
-                debugLog("[AppManager] perform(): Failed to save InstalledApp to database. \(error.localizedDescription)")
+                throw error
             }
             
             group.set(.success(result), forAppWithBundleIdentifier: bundleID)
@@ -283,7 +289,9 @@ final class PipelineRunner: Sendable
             }
 
         } catch {
-
+            // Operations are serialized; never persist a failed install through
+            // a later app's successful save in the same group.
+            await group.dbContext.perform { group.dbContext.rollback() }
             progress.set(nil, for: operation)
             
             let elapsed = CFAbsoluteTimeGetCurrent() - group.operationStartTime

@@ -355,33 +355,9 @@ final class InstallAppOperation: BasePipelineOperation<InstallAppOperationContex
                                         provisioningProfiles: [String: ALTProvisioningProfile],
                                         in backgroundContext: NSManagedObjectContext
     ){
-        if let sideloadedAppsLimit = UserDefaults.standard.activeAppsLimit,
-               provisioningProfiles.contains(where: { $1.isFreeProvisioningProfile == true })
-        {
-            // When installing these new profiles, AltServer will remove all non-active profiles to ensure we remain under limit.
-            let fetchRequest = InstalledApp.activeAppsFetchRequest()
-            fetchRequest.includesPendingChanges = false
-            
-            // Only free-cert-signed apps count against the free limit
-            var activeApps = InstalledApp.fetch(fetchRequest, in: backgroundContext)
-                                         .filter { ($0.team?.type ?? .unknown) == .free }
-            
-            if !activeApps.contains(installedApp) {
-                let activeAppsCount = activeApps.map { $0.requiredActiveSlots }.reduce(0, +)
-                
-                let availableActiveApps = max(sideloadedAppsLimit - activeAppsCount, 0)
-                if installedApp.requiredActiveSlots <= availableActiveApps {
-                    // This app has not been explicitly activated, but there are enough slots available,
-                    // so implicitly activate it.
-                    installedApp.isActive = true
-                    activeApps.append(installedApp)
-                } else {
-                    installedApp.isActive = false
-                }
-            }
-        } else {
-            installedApp.isActive = true
-        }
+        // The TV enforces its own provisioning limits. Do not apply iPhone
+        // slot/deactivation rules to a remote tvOS installation.
+        installedApp.isActive = true
     }
         
     private func suspendToHomeScreen() async {

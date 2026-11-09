@@ -67,7 +67,6 @@ final class ResignAppOperation: BasePipelineOperation<InstallAppOperationContext
         }
         
         // Use customized bundle ID if applicable
-        let openURL = InstalledApp.openAppURL(targetBundleIdentifier: finalBundleIdentifier)
         let fileURL = targetAppBundle.fileURL
 
         let appBundleURL = self.context.temporaryDirectory.appendingPathComponent("App.app")
@@ -81,32 +80,9 @@ final class ResignAppOperation: BasePipelineOperation<InstallAppOperationContext
         guard let appBundle = ALTApplication(fileURL: appBundleURL) else {
             throw OperationError.missingAppBundle(reason: "Could not load bundle at '\(appBundleURL.lastPathComponent)'")
         }
-        let infoDictionary = appBundle.infoPlist
-        
-        // replace scheme targets to match the bundle suffix so multiple instances can be correctly routed for helper apps like SideBackup
-        var allURLSchemes = infoDictionary[Bundle.Info.urlTypes] as? [[String: Any]] ?? []
-        allURLSchemes.removeAll { urlType in
-            guard let schemes = urlType["CFBundleURLSchemes"] as? [String] else { return false }
-            return schemes.contains { $0.hasPrefix("sidestore-") }
-        }
-        
-        let altstoreURLScheme = ["CFBundleTypeRole": "Editor",
-                                 "CFBundleURLName": finalBundleIdentifier,
-                                 "CFBundleURLSchemes": [openURL.scheme!]] as [String : Any]
-        allURLSchemes.append(altstoreURLScheme)
-        
-        var additionalValues: [String: Any] = [Bundle.Info.urlTypes: allURLSchemes]
+        // Preserve the tvOS app's URL schemes; no iPhone launch helpers are injected.
+        let additionalValues: [String: Any] = [:]
 
-        if targetAppBundle.isAltStoreApp {
-            if let activeCert = CertificateManager.shared.activeCertificate {
-                additionalValues[Bundle.Info.certificateID] = activeCert.serialNumber
-                let certURL = appBundle.fileURL.appendingPathComponent("ALTCertificate.p12")
-                try activeCert.p12Data.write(to: certURL, options: .atomic)
-            } else {
-                self.verboseLog("[ResignAppOperation] No activeCertificate found in CertificateManager. Embedded certificate + certificate identifier in app bundle will not be updated.")
-            }
-        }
-        
         // Prepare app
         try self.prepare(appBundle, bundleID: bundleIdentifier, additionalInfoDictionaryValues: additionalValues, profiles: profiles, appexBundleIds: appexBundleIds)
         try self.removeMissingAppExtensionReferences(from: appBundle)
@@ -167,17 +143,6 @@ final class ResignAppOperation: BasePipelineOperation<InstallAppOperationContext
                 infoDictionary["NSExtension"] = extensionInfo
             }
         }
-        
-        // Add app-specific exported UTI so we can check later if this app (extension) is installed or not.
-        let installedAppUTI = ["UTTypeConformsTo": [],
-                               "UTTypeDescription": "AltStore Installed App",
-                               "UTTypeIconFiles": [],
-                               "UTTypeIdentifier": InstalledApp.installedAppUTI(forBundleIdentifier: profile.bundleIdentifier),
-                               "UTTypeTagSpecification": [:]] as [String : Any]
-        
-        var exportedUTIs = infoDictionary[Bundle.Info.exportedUTIs] as? [[String: Any]] ?? []
-        exportedUTIs.append(installedAppUTI)
-        infoDictionary[Bundle.Info.exportedUTIs] = exportedUTIs
         
         try InfoPlistParser(dictionary: infoDictionary).write(to: appBundle.infoPlistURL)
         
