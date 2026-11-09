@@ -12,6 +12,7 @@ import CoreData
 import SideSign
 @preconcurrency import UIKit
 import SemanticVersion
+import Nuke
 
 public enum CertificateStatus: Equatable, Sendable {
     case valid(isCrossSigned: Bool)
@@ -328,18 +329,23 @@ public extension InstalledApp
         let hasAlternateIcon = self.hasAlternateIcon
         let alternateIconURL = self.alternateIconURL
         let fileURL = self.fileURL
+        let cachedIconURL = self.directoryURL.appendingPathComponent("AppleTVIcon.png")
+        let sourceIconURL = self.storeApp?.iconURL
         
-        return try await Task.detached(priority: .userInitiated) {
+        let localIcon = await Task.detached(priority: .userInitiated) {
             if hasAlternateIcon,
-               case let data = try Data(contentsOf: alternateIconURL),
+               let data = try? Data(contentsOf: alternateIconURL),
                let icon = UIImage(data: data)
             {
                 return icon
             }
             
-            let appBundle = ALTApplication(fileURL: fileURL)
-            return appBundle?.icon
+            if let cached = UIImage(contentsOfFile: cachedIconURL.path) { return cached }
+            return TVAppIcon.load(bundleURL: fileURL)
         }.value
+        if let localIcon { return localIcon }
+        if let sourceIconURL { return try? await ImagePipeline.shared.image(for: sourceIconURL) }
+        return nil
     }
 
     func matches(_ appVersion: AppVersion) -> Bool 

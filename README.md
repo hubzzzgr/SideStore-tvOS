@@ -4,7 +4,7 @@ Experimental SideStore fork for signing and managing tvOS IPAs over local Wi-Fi,
 
 [Setup, implementation and platform limits](docs/APPLE-TV.md) · [Unsigned iPhone IPA builds](https://github.com/hubzzzgr/SideStore-tvOS/actions/workflows/tvos-iphone.yml)
 
-**Physical Apple TV installation has not yet been validated. A build or successful pairing does not establish installation support.** See the hardware acceptance checklist and service restrictions before testing. The controller requires iOS 17+; CI uses no paid Apple Developer credentials. Runtime Apple account provisioning permissions still apply.
+**The fork owner reports successful physical Apple TV testing. A build or successful pairing alone does not establish installation support.** See the hardware acceptance checklist and service restrictions before testing. The controller requires iOS 17+; CI uses no paid Apple Developer credentials. Runtime Apple account provisioning permissions still apply.
 
 The inherited authentication, signing, IPA cache and relevant My Apps/Settings UI remain in this repository. Development changes are on the `tvos` branch. SideStore's AGPL-3.0 license and attribution are preserved.
 

@@ -10,7 +10,7 @@ import SwiftUI
 import SideSign
 
 struct PendingImport {
-    let url: URL
+    let data: Data
     let filename: String
 }
 
@@ -64,6 +64,8 @@ class CertificatesViewModel: ObservableObject {
     
     @Published var importPasswordInput: String = ""
     @Published var showPasswordPromptForImport: Bool = false
+    @Published var importPasswordError: String?
+    private var awaitingPassword = false
     @Published var showImportSummary: Bool = false
     @Published var showFailuresAlert: Bool = false
     
@@ -205,7 +207,14 @@ class CertificatesViewModel: ObservableObject {
     }
     
     func startBulkImport(urls: [URL]) {
-        self.pendingImports     = urls.map { PendingImport(url: $0, filename: $0.lastPathComponent) }
+        do { startBulkImport(files: try urls.map { try ImportedLocalFile.read($0, maximumBytes: 16 * 1024 * 1024) }) }
+        catch { errorMessage = error.localizedDescription }
+    }
+
+    func startBulkImport(files: [ImportedLocalFile]) {
+        guard !files.isEmpty else { return }
+        self.pendingImports = files.map { PendingImport(data: $0.data, filename: $0.filename) }
+        self.lastUsedPassword = ""
         self.currentImportIndex = 0
         self.importSuccessCount = 0
         self.importFailedCount  = 0
@@ -217,22 +226,14 @@ class CertificatesViewModel: ObservableObject {
     func processNextImport() {
         guard currentImportIndex < pendingImports.count else {
             self.pendingImports = []
+            self.lastUsedPassword = ""; self.importPasswordInput = ""
             self.loadCertificates(presentingViewController: nil)
             showImportSummaryAlert()
             return
         }
         
         let pending = pendingImports[currentImportIndex]
-        _ = pending.url.startAccessingSecurityScopedResource()
-        defer { pending.url.stopAccessingSecurityScopedResource() }
-        
-        guard let certData = try? Data(contentsOf: pending.url) else {
-            failedImportsList.append("\(pending.filename): Read error.")
-            importFailedCount += 1
-            currentImportIndex += 1
-            processNextImport()
-            return
-        }
+        let certData = pending.data
         
         if let rawCert = ALTX509Certificate(data: certData) {
             if isDuplicate(cert: rawCert, importedSerials: importedSerialsThisBatch) {
@@ -284,10 +285,9 @@ class CertificatesViewModel: ObservableObject {
                 processNextImport()
                 return
             } catch ALTCertificateError.decryptionFailed {
-                DispatchQueue.main.async {
-                    self.importPasswordInput         = ""
-                    self.showPasswordPromptForImport = true
-                }
+                self.importPasswordInput = ""; self.importPasswordError = nil
+                self.awaitingPassword = true
+                self.showPasswordPromptForImport = true
                 return
             } catch {
                 failedImportsList.append("\(pending.filename): \(error.localizedDescription)")
@@ -308,17 +308,7 @@ class CertificatesViewModel: ObservableObject {
         guard currentImportIndex < pendingImports.count else { return }
         let pending  = pendingImports[currentImportIndex]
         
-        _ = pending.url.startAccessingSecurityScopedResource()
-        defer { pending.url.stopAccessingSecurityScopedResource() }
-
-        guard let certData = try? Data(contentsOf: pending.url) else {
-            failedImportsList.append("\(pending.filename): Failed to read file data.")
-            importFailedCount += 1
-            showPasswordPromptForImport = false
-            currentImportIndex += 1
-            processNextImport()
-            return
-        }
+        let certData = pending.data
         
         do {
             let altCert = try ALTCertificate(p12Data: certData, password: importPasswordInput)
@@ -330,26 +320,33 @@ class CertificatesViewModel: ObservableObject {
                 recordSuccessfulImport(serial: altCert.serialNumber, hasPrivateKey: true, filename: pending.filename)
             }
             self.lastUsedPassword = importPasswordInput
+            self.awaitingPassword = false
             self.showPasswordPromptForImport = false
             currentImportIndex += 1
-            processNextImport()
         } catch ALTCertificateError.decryptionFailed {
-            self.errorMessage = "Incorrect password for " + pending.filename
+            self.importPasswordError = "Incorrect password. Try again."
         } catch {
+            self.awaitingPassword = false
             self.showPasswordPromptForImport = false
             failedImportsList.append("\(pending.filename): \(error.localizedDescription)")
             importFailedCount += 1
             currentImportIndex += 1
-            processNextImport()
         }
     }
     
     func cancelImport() {
         self.showPasswordPromptForImport = false
+        guard currentImportIndex < pendingImports.count else { return }
+        self.awaitingPassword = false
         let pending = pendingImports[currentImportIndex]
         failedImportsList.append("\(pending.filename): Password required but skipped.")
         importFailedCount += 1
         currentImportIndex += 1
+    }
+
+    func resumeAfterPasswordPrompt() {
+        if awaitingPassword { cancelImport() }
+        importPasswordInput = ""; importPasswordError = nil
         processNextImport()
     }
     

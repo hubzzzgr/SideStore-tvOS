@@ -15,15 +15,13 @@ struct CertificatesView: View {
     
     @StateObject private var viewModel = CertificatesViewModel()
     
-    private var allowedImportTypes: [UTType] {
-        ["p12", "pfx", "pkcs12", "der", "cer", "crt", "pem"].compactMap { UTType(filenameExtension: $0) }
-    }
     private var allowedKeyImportTypes: [UTType] {
         ["key", "pem", "der"].compactMap { UTType(filenameExtension: $0) }
     }
     
     @State private var showCreateSheet            = false
     @State private var showFileImporter           = false
+    @State private var selectedImport: Result<[ImportedLocalFile], Error>?
     @State private var showRevokeConfirmation     = false
     @State private var showDeactivateConfirmation = false
     @State private var showDeleteConfirmation     = false
@@ -142,12 +140,20 @@ struct CertificatesView: View {
         } message: {
             Text("Are you sure you want to delete this certificate locally? This will remove it from the cached local store.")
         }
-        .alert("Import Certificate Password", isPresented: $viewModel.showPasswordPromptForImport) {
-            SecureField("Password", text: $viewModel.importPasswordInput)
-            SwiftUI.Button("Import") { viewModel.submitImportPassword() }
-            SwiftUI.Button("Cancel", role: .cancel) { viewModel.cancelImport() }
-        } message: {
-            Text("Enter the password to decrypt the imported certificate file.\n\nFile: \(viewModel.currentImportFilename)")
+        .sheet(isPresented: $viewModel.showPasswordPromptForImport, onDismiss: { viewModel.resumeAfterPasswordPrompt() }) {
+            NavigationStack {
+                Form {
+                    Section("Certificate") { Text(viewModel.currentImportFilename) }
+                    Section("Password") {
+                        SecureField("Certificate password", text: $viewModel.importPasswordInput)
+                            .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        if let error = viewModel.importPasswordError { Text(error).foregroundStyle(.red) }
+                    }
+                    SwiftUI.Button("Import Certificate") { viewModel.submitImportPassword() }
+                }
+                .navigationTitle("Import Certificate")
+                .toolbar { ToolbarItem(placement: .cancellationAction) { SwiftUI.Button("Cancel") { viewModel.cancelImport() } } }
+            }
         }
         .alert("Success", isPresented: $viewModel.showAlert) {
             SwiftUI.Button("OK", role: .cancel) { viewModel.alertMessage = nil }
@@ -215,30 +221,10 @@ struct CertificatesView: View {
             }
         }
         #if !os(tvOS)
-        .fileImporter(
-            isPresented: $showFileImporter,
-            allowedContentTypes: fileImportMode == .certificate ? allowedImportTypes : allowedKeyImportTypes,
-            allowsMultipleSelection: fileImportMode == .certificate
-        ) { result in
-            switch result {
-            case .success(let urls):
-                switch fileImportMode {
-                case .certificate:
-                    viewModel.startBulkImport(urls: urls)
-                case .privateKey:
-                    if let url = urls.first, let cert = certificateToAddKeyFor {
-                        _ = url.startAccessingSecurityScopedResource()
-                        defer { url.stopAccessingSecurityScopedResource() }
-                        do {
-                            viewModel.importPrivateKey(data: try Data(contentsOf: url), for: cert)
-                        } catch {
-                            viewModel.errorMessage = "Failed to read private key: " + error.localizedDescription
-                        }
-                    }
-                }
-            case .failure(let error):
-                let type = fileImportMode == .certificate ? "files" : "private key"
-                viewModel.errorMessage = "Failed to select \(type): " + error.localizedDescription
+        .sheet(isPresented: $showFileImporter, onDismiss: processSelectedFiles) {
+            LocalFilePicker(allowsMultipleSelection: fileImportMode == .certificate) { result in
+                selectedImport = result
+                showFileImporter = false
             }
         }
         #endif
@@ -261,6 +247,25 @@ struct CertificatesView: View {
             if let url = viewModel.shareURL {
                 ActivityViewController(activityItems: [url])
             }
+        }
+    }
+
+    private func processSelectedFiles() {
+        guard let result = selectedImport else { return }
+        selectedImport = nil
+        switch result {
+            case .success(let files):
+                switch fileImportMode {
+                case .certificate:
+                    viewModel.startBulkImport(files: files)
+                case .privateKey:
+                    if let file = files.first, let cert = certificateToAddKeyFor {
+                        viewModel.importPrivateKey(data: file.data, for: cert)
+                    }
+                }
+            case .failure(let error):
+                let type = fileImportMode == .certificate ? "files" : "private key"
+                viewModel.errorMessage = "Failed to select \(type): " + error.localizedDescription
         }
     }
     

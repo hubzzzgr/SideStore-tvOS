@@ -2,6 +2,14 @@ import XCTest
 @testable import TVPairCore
 
 final class RemoteAppServicesTests: XCTestCase {
+    func testIconReplyRequiresBoundedPNGAndHonorsDeviceErrors() throws {
+        let png = Data([137, 80, 78, 71, 13, 10, 26, 10])
+        XCTAssertEqual(try RemotePlistService.iconPNG(["pngData": png]), png)
+        XCTAssertThrowsError(try RemotePlistService.iconPNG([:]))
+        XCTAssertThrowsError(try RemotePlistService.iconPNG(["pngData": Data("not an icon".utf8)]))
+        XCTAssertThrowsError(try RemotePlistService.iconPNG(["pngData": png + Data(repeating: 0, count: 4_194_304)]))
+        XCTAssertThrowsError(try RemotePlistService.iconPNG(["pngData": png, "Error": "ApplicationNotFound"]))
+    }
     private func plist(_ value: [String: Any]) throws -> Data {
         let body = try PropertyListSerialization.data(fromPropertyList: value, format: .xml, options: 0)
         var size = UInt32(body.count).bigEndian

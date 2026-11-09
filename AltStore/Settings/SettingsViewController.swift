@@ -62,6 +62,7 @@ extension SettingsViewController
         case developer
         case operations
         case designer
+        case tvosPort
         case softwareLicenses
     }
     
@@ -1197,6 +1198,7 @@ extension SettingsViewController
             case .developer: self.openTwitter(username: "sidestoreio")
             case .operations: self.openTwitter(username: "sidestoreio")
             case .designer: self.openTwitter(username: "lit_ritt")
+            case .tvosPort: self.openWebURL(URL(string: "https://x.com/hbzgr009?s=11")!, preferredTintColor: .altPrimary)
             case .softwareLicenses: break
             }
             

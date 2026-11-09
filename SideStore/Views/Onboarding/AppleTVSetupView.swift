@@ -1,5 +1,6 @@
 import SwiftUI
 import TVPairCore
+import UniformTypeIdentifiers
 
 struct AppleTVSetupView: View {
     @ObservedObject private var model = AppleTVManager.shared
@@ -10,6 +11,11 @@ struct AppleTVSetupView: View {
     @State private var working = false
     @State private var ready = false
     @State private var pendingForget: SavedDevice?
+    @State private var showPairingImporter = false
+    @State private var selectedPairing: Result<[ImportedLocalFile], Error>?
+    @State private var pairingExport: PairingFileDocument?
+    @State private var showPairingExporter = false
+    @State private var fileNotice: String?
     @FocusState private var codeFocused: Bool
 
     private var accent: Color { Color(uiColor: theme.primaryColor) }
@@ -26,6 +32,7 @@ struct AppleTVSetupView: View {
             if !model.saved.isEmpty { savedTVs }
             nearbyTVs
             manualAddress
+            pairingFiles
             if ready && !busy { installedApps }
         }
         .listStyle(.insetGrouped)
@@ -34,6 +41,18 @@ struct AppleTVSetupView: View {
         .tint(accent)
         .navigationTitle("Apple TV")
         .navigationBarTitleDisplayMode(.large)
+        .sheet(isPresented: $showPairingImporter, onDismiss: importSelectedPairing) {
+            LocalFilePicker(maximumBytes: 1_048_576) { result in
+                selectedPairing = result; showPairingImporter = false
+            }
+        }
+        .fileExporter(isPresented: $showPairingExporter, document: pairingExport, contentType: .propertyList, defaultFilename: "AppleTV-Pairing") { result in
+            pairingExport = nil
+            switch result {
+            case .success: fileNotice = "Pairing file exported."
+            case let .failure(error): self.error = error.localizedDescription
+            }
+        }
         .onReceive(model.readiness) { result in ready = (try? result.get()) == true }
         .onChange(of: model.needsPIN) { _, needsPIN in codeFocused = needsPIN }
         .onChange(of: model.pin) { _, value in
@@ -131,6 +150,7 @@ struct AppleTVSetupView: View {
                     SwiftUI.Button("Connect") { perform { try model.select(device.id); _ = try await model.ready(force: true) } }
                         .buttonStyle(.bordered).disabled(busy)
                     Menu {
+                        SwiftUI.Button("Export Pairing File", systemImage: "square.and.arrow.up") { exportPairing(device.id) }
                         SwiftUI.Button("Forget Pairing", role: .destructive) { pendingForget = device }
                     } label: { Image(systemName: "ellipsis.circle").padding(.vertical, 8) }
                     .disabled(busy).accessibilityLabel("Options for \(device.name)")
@@ -194,6 +214,37 @@ struct AppleTVSetupView: View {
             }
         } header: { Text("On Your Apple TV") }
         footer: { Text("Use My Apps to manage packages you’ve imported into SideTVstore.") }
+    }
+
+    private var pairingFiles: some View {
+        Section {
+            SwiftUI.Button("Import Pairing File", systemImage: "square.and.arrow.down") {
+                error = nil; fileNotice = nil; selectedPairing = nil; showPairingImporter = true
+            }.disabled(busy)
+            if let id = model.selectedID {
+                SwiftUI.Button("Export Selected TV Pairing", systemImage: "square.and.arrow.up") { exportPairing(id) }.disabled(busy)
+            }
+            if let fileNotice { Text(fileNotice).font(.caption).foregroundStyle(.secondary) }
+        } header: { Text("Pairing Files") }
+        footer: { Text("Import a Remote Pairing plist from SideTVstore or TVPair. Exported files contain private pairing credentials; keep them private. Saved credentials remain in Keychain.") }
+    }
+
+    private func importSelectedPairing() {
+        guard let result = selectedPairing else { return }
+        selectedPairing = nil
+        perform {
+            if let file = try result.get().first {
+                try await model.importPairing(file.data)
+                fileNotice = "Pairing imported. Use Connect under Your Apple TVs to verify it."
+            }
+        }
+    }
+    private func exportPairing(_ id: UUID) {
+        perform {
+            let data = try await model.exportPairing(id)
+            pairingExport = PairingFileDocument(data: data)
+            showPairingExporter = true
+        }
     }
 
     private func perform(_ action: @escaping @MainActor () async throws -> Void) {

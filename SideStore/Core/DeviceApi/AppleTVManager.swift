@@ -4,10 +4,18 @@ import Combine
 import SideSign
 import TVPairCore
 
+struct AppleTVIconRequest: Sendable {
+    let bundleIdentifier: String
+    let destination: URL
+}
+
 /// The selected TV, never the iPhone hosting SideStore, owns device operations.
 @MainActor
 final class AppleTVManager: ObservableObject {
     static let shared = AppleTVManager()
+    static let iconsDidChange = Notification.Name("SideTVstore.iconsDidChange")
+    static let operationsDidFinish = Notification.Name("SideTVstore.operationsDidFinish")
+    private var iconRefresh: Task<Void, Never>?
     let discovery = BonjourDiscovery()
     private let vault = CredentialVault()
     @Published private(set) var saved: [SavedDevice] = []
@@ -35,6 +43,32 @@ final class AppleTVManager: ObservableObject {
         selectedID = UserDefaults.standard.string(forKey: "AppleTV.selected").flatMap(UUID.init(uuidString:))
     }
     func load() async throws { saved = try await vault.load() }
+    func importPairing(_ data: Data) async throws {
+        guard leases == 0, !busy, connecting == nil else { throw TVInstallationError.busy }
+        var record = try PairingRecord.importPlist(data)
+        guard record.peerPublicKey != nil, record.peerIdentifier != nil else {
+            throw TVPairError.invalidRecord("This file lacks the TV's peer-verification keys. Export a saved pairing from SideTVstore or TVPair, or pair with the TV again.")
+        }
+        if let product = record.productType, !product.hasPrefix("AppleTV") {
+            throw TVPairError.invalidRecord("This pairing belongs to a different device type.")
+        }
+        // Reimporting our own export preserves the selected TV/library binding.
+        for device in saved {
+            let existing = try await vault.record(id: device.id)
+            if existing.publicKey == record.publicKey, existing.peerPublicKey == record.peerPublicKey,
+               existing.peerIdentifier == record.peerIdentifier {
+                record.id = existing.id; break
+            }
+        }
+        saved = try await vault.save(record)
+        let bound = UserDefaults.standard.string(forKey: "AppleTV.managedTarget")
+        if bound == nil || bound == record.id.uuidString { try select(record.id) }
+        status = "Pairing imported. Connect to verify this Apple TV."
+    }
+    func exportPairing(_ id: UUID) async throws -> Data {
+        guard leases == 0, !busy, connecting == nil else { throw TVInstallationError.busy }
+        return try await vault.record(id: id).exportPlist()
+    }
     func startDiscovery() { discovery.start() }
     func select(_ id: UUID) throws {
         guard leases == 0, !busy, connecting == nil else { throw TVInstallationError.busy }
@@ -175,6 +209,11 @@ final class AppleTVManager: ObservableObject {
         catch { readiness.send(.failure(error)); status = error.localizedDescription; throw error }
     }
     func beginOperations() async throws {
+        // App mutations take priority over optional, read-only icon retrieval.
+        if let iconRefresh {
+            iconRefresh.cancel(); connecting?.cancel(); developer?.cancel()
+            await iconRefresh.value
+        }
         guard leases == 0, !busy else { throw TVInstallationError.busy }
         leases = 1
         do { _ = try await ready(force: true) }
@@ -187,6 +226,33 @@ final class AppleTVManager: ObservableObject {
         }
         staged.removeAll(); developer = nil; readyAt = .distantPast; leases = 0
         readiness.send(.success(false))
+        NotificationCenter.default.post(name: Self.operationsDidFinish, object: nil)
+    }
+    func refreshIcons(_ requests: [AppleTVIconRequest]) {
+        guard !requests.isEmpty, leases == 0, !busy, connecting == nil, iconRefresh == nil else { return }
+        if let bound = UserDefaults.standard.string(forKey: "AppleTV.managedTarget"), bound != selectedID?.uuidString { return }
+        leases = 1
+        iconRefresh = Task {
+            var changed = false
+            defer {
+                leases = 0; iconRefresh = nil
+                if changed { NotificationCenter.default.post(name: Self.iconsDidChange, object: nil) }
+            }
+            do {
+                let connection = try await ready()
+                guard await connection.supportsAppIcons else { return }
+                for request in requests {
+                    try Task.checkCancellation()
+                    let png = try await connection.appIconPNG(bundleIdentifier: request.bundleIdentifier)
+                    guard UIImage(data: png) != nil else { continue }
+                    try FileManager.default.createDirectory(at: request.destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try png.write(to: request.destination, options: .atomic)
+                    changed = true
+                }
+            } catch {
+                if !Task.isCancelled { debugLog("[AppleTVIcons] Optional icon retrieval unavailable; using cached bundle or source artwork.") }
+            }
+        }
     }
     func deviceUDID() async throws -> String {
         _ = try await ready()

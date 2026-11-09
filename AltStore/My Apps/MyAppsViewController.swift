@@ -67,6 +67,7 @@ class MyAppsViewController: UICollectionViewController
     
     private var minimuxerStatusCheckTask: Task<Void, Never>?
     private var transferStatusSubscription: AnyCancellable?
+    private var iconSubscriptions = Set<AnyCancellable>()
     
     // Cache
     private var cachedUpdateSizes = [String: CGSize]()
@@ -94,6 +95,15 @@ class MyAppsViewController: UICollectionViewController
         transferStatusSubscription = AppleTVManager.shared.$transferStatus
             .receive(on: DispatchQueue.main)
             .sink { [weak self] status in self?.navigationItem.prompt = status }
+        NotificationCenter.default.publisher(for: AppleTVManager.iconsDidChange)
+            .receive(on: DispatchQueue.main).sink { [weak self] _ in
+                self?.activeAppsDataSource.prefetchItemCache.removeAllObjects()
+                self?.inactiveAppsDataSource.prefetchItemCache.removeAllObjects()
+                self?.collectionView.reloadData()
+            }.store(in: &iconSubscriptions)
+        NotificationCenter.default.publisher(for: AppleTVManager.operationsDidFinish)
+            .receive(on: DispatchQueue.main).sink { [weak self] _ in self?.refreshMissingTVIcons() }
+            .store(in: &iconSubscriptions)
         
         // Allows us to intercept delegate callbacks.
         self.updatesDataSource.fetchedResultsController.delegate = self
@@ -154,6 +164,7 @@ class MyAppsViewController: UICollectionViewController
                 for await result in appleTVStatusPublisher.values {
                     guard !Task.isCancelled else { break }
                     updateStatusDot(isReady: (try? result.get()) == true)
+                    if (try? result.get()) == true { self.refreshMissingTVIcons() }
                 }
             }
         }
@@ -196,6 +207,7 @@ class MyAppsViewController: UICollectionViewController
         super.viewDidAppear(animated)
         
         _viewDidAppear = true
+        refreshMissingTVIcons()
 
         if let pendingURL = self.pendingImportURL {
             self.pendingImportURL = nil
@@ -206,6 +218,15 @@ class MyAppsViewController: UICollectionViewController
     override func viewWillDisappear(_ animated: Bool)
     {
         super.viewWillDisappear(animated)
+    }
+    private func refreshMissingTVIcons() {
+        let apps = InstalledApp.all(in: DatabaseManager.shared.viewContext)
+        let requests = apps.compactMap { app -> AppleTVIconRequest? in
+            let destination = app.directoryURL.appendingPathComponent("AppleTVIcon.png")
+            guard !FileManager.default.fileExists(atPath: destination.path) else { return nil }
+            return AppleTVIconRequest(bundleIdentifier: app.resignedBundleIdentifier, destination: destination)
+        }
+        AppleTVManager.shared.refreshIcons(requests)
     }
     
     private func findView(in view: UIView, where predicate: (UIView) -> Bool) -> UIView? {
@@ -452,7 +473,7 @@ private extension MyAppsViewController
         dataSource.prefetchCompletionHandler = { (cell, image, indexPath, error) in
             let cell = cell as! UpdateCollectionViewCell
             cell.bannerView.iconImageView.isIndicatingActivity = false
-            cell.bannerView.iconImageView.image = image
+            cell.bannerView.iconImageView.image = image ?? UIImage(systemName: "appletv.fill")
             
             if let error = error
             {
@@ -543,7 +564,7 @@ private extension MyAppsViewController
             }
         }
         dataSource.prefetchHandler = { (item, indexPath) in
-            return try await item.loadIcon()
+            return try await item.loadIcon() ?? UIImage(systemName: "appletv.fill")
         }
         dataSource.prefetchCompletionHandler = { (cell, image, indexPath, error) in
             let cell = cell as! InstalledAppCollectionViewCell
@@ -622,7 +643,7 @@ private extension MyAppsViewController
             }
         }
         dataSource.prefetchHandler = { (item, indexPath) in
-            return try await item.loadIcon()
+            return try await item.loadIcon() ?? UIImage(systemName: "appletv.fill")
         }
         dataSource.prefetchCompletionHandler = { (cell, image, indexPath, error) in
             let cell = cell as! InstalledAppCollectionViewCell

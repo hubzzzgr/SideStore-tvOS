@@ -105,6 +105,25 @@ final class CoreTests: XCTestCase {
         let loaded = try await vault.load()
         XCTAssertEqual(loaded.count, 0)
     }
+    func testPairingFilesPreservePinnedPeerAndSigningIdentityInXMLAndBinary() throws {
+        var record = Self.record()
+        record.peerPublicKey = Curve25519.Signing.PrivateKey().publicKey.rawRepresentation
+        record.peerIdentifier = Data("fixture-peer".utf8)
+        record.lastEndpoint = try ConnectionEndpoint(host: "192.0.2.1", port: "1234")
+        let xml = try record.exportPlist()
+        let plist = try PropertyListSerialization.propertyList(from: xml, format: nil)
+        let binary = try PropertyListSerialization.data(fromPropertyList: plist, format: .binary, options: 0)
+        for data in [xml, binary] {
+            let imported = try PairingRecord.importPlist(data)
+            XCTAssertEqual(imported.peerPublicKey, record.peerPublicKey)
+            XCTAssertEqual(imported.peerIdentifier, record.peerIdentifier)
+            XCTAssertEqual(imported.lastEndpoint, record.lastEndpoint)
+            XCTAssertTrue(imported.summary.canVerifyPeer)
+            let challenge = Data("test reconnect challenge".utf8)
+            let signature = try Curve25519.Signing.PrivateKey(rawRepresentation: imported.privateKey).signature(for: challenge)
+            XCTAssertTrue(try Curve25519.Signing.PublicKey(rawRepresentation: record.publicKey).isValidSignature(signature, for: challenge))
+        }
+    }
     func testSanitizedLogsNeverContainSecretFixtures() {
         let input = "PIN=123456 token=abc-secret private_key=super-secret\n-----BEGIN PRIVATE KEY-----\nTESTKEY\n-----END PRIVATE KEY-----\nAuthorization: Bearer credential\n\"password\": \"secret with spaces\""
         let output = LogSanitizer.sanitize(input)

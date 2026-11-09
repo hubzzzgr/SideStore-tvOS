@@ -6,9 +6,11 @@ IPA cache/import/export, app lists, and app operation pipeline. The iPhone
 controller itself is not an app to install or refresh on the TV.
 
 **A successful CI archive is not evidence of successful Apple TV installation.**
-No physical Apple TV installation, refresh, update, or removal has been validated
-by this implementation session. Hardware results from the pairing POC apply to
-that POC and do not establish installation support in this fork.
+On 2026-11-09 the fork owner reported that the features work as intended on a
+physical Apple TV. This is user-reported validation, without a recorded device
+model/OS test matrix. The automated checks still run without an Apple TV. The
+new certificate picker, pairing-file transfer and icon changes need targeted
+testing on the iPhone and TV.
 
 ## Setup and use
 
@@ -67,8 +69,13 @@ mutations are not automatically replayed: inspect the TV's inventory before
 explicitly retrying an uncertain install/uninstall. Progress reaching 100% is
 not sufficient to report success.
 
-Pairing private keys stay in Keychain with `WhenUnlockedThisDeviceOnly`; the
-fork does not silently fall back to files or export keys in URL callbacks.
+Pairing private keys are saved in Keychain with `WhenUnlockedThisDeviceOnly`.
+Apple TV → Pairing Files imports Remote Pairing plists; Export Selected TV
+Pairing (also available in each saved TV's menu) exports a user-selected file
+through Files. Exported plists contain private credentials and should be kept
+private. Import validates the key pair and peer pin, saves to Keychain, and
+requires live verification before installation. USB lockdown pairing files are
+not interchangeable. There is no silent file-storage fallback or URL key export.
 Reconnection refreshes Bonjour endpoint hints and verifies the pinned peer
 identity. Changed IP addresses are accepted only after that verification.
 Offline startup preserves credentials. Forgetting a record on the iPhone does
@@ -108,7 +115,7 @@ last upload stage and accepted byte count with the new error message.
   tvOS Developer Mode switch asserted here. The fork verifies an actual
   Instruments or CoreDevice read-only response before any installation attempt.
 - Availability of the three RSD shim services on the particular tvOS build is
-  unverified. Missing/denied services stop explicitly. A CoreDevice-only app
+  not established across firmware versions. Missing/denied services stop explicitly. A CoreDevice-only app
   installation protocol is not implemented as a guessed fallback.
 - Some firmware requires a compatible or personalized Developer Disk Image.
   Automatic DDI download, personalization and mounting are not implemented.
@@ -148,6 +155,19 @@ profile, denied services, transfer cancellation, and Wi-Fi loss during install.
 Logs or screenshots shared for validation must omit credentials and UDIDs.
 
 ## Build and source
+
+Certificate and pairing imports use a local-copy document picker and read files
+while their security-scoped access is active. Certificate passwords are entered
+after Files dismisses, and batch imports retain the selected bytes rather than
+reopening provider URLs. Pairing import/export supports XML and binary Remote
+Pairing plists; PIN codes and private keys are never written to console logs.
+
+My Apps loads custom artwork, cached TV PNGs, tvOS bundle/asset-catalog artwork,
+then source artwork. Where advertised, the authenticated
+`com.apple.springboardservices.shim.remote` service supplies `getIconPNGData`.
+These optional images are cached for offline display. App operations take
+priority over icon retrieval; unavailable artwork falls back to an Apple TV
+symbol without leaving an indefinite spinner.
 
 The `Build Apple TV controller IPA` workflow runs on GitHub-hosted `macos-15`.
 It selects Xcode 26.3, verifies the pinned binary checksums, runs native protocol tests,

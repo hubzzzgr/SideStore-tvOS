@@ -75,6 +75,14 @@ actor RemotePlistService {
             throw TVInstallationError.deviceRejected(code.isEmpty ? "service error" : code)
         }
     }
+    static func iconPNG(_ reply: [String: Any]) throws -> Data {
+        try checkError(reply)
+        guard let png = reply["pngData"] as? Data, png.count <= 4_194_304,
+              png.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]) else {
+            throw TVInstallationError.protocolFailure("Apple TV app icon")
+        }
+        return png
+    }
     func completion() async throws {
         let deadline = Date().addingTimeInterval(600)
         for _ in 0..<4096 {
@@ -238,6 +246,15 @@ extension DeveloperConnection {
     public func lookupApps() async throws -> [String: String] {
         try beginAppOperation(); defer { operating = false }
         return try await lookup()
+    }
+    public var supportsAppIcons: Bool { availableServices["com.apple.springboardservices.shim.remote"] != nil }
+    public func appIconPNG(bundleIdentifier: String) async throws -> Data {
+        try beginAppOperation(); defer { operating = false }
+        return try await usingService("com.apple.springboardservices.shim.remote") { client in
+            try await client.send(["command": "getIconPNGData", "bundleId": bundleIdentifier])
+            let reply = try await client.receive(timeout: 8)
+            return try RemotePlistService.iconPNG(reply)
+        }
     }
     private func lookup() async throws -> [String: String] {
         try await usingService("com.apple.mobile.installation_proxy.shim.remote") { client in

@@ -18,6 +18,7 @@ struct PrivateKeyTextInputView: View {
     var onCancel: () -> Void
     
     @State private var showFilePicker = false
+    @State private var importedTextFile: Result<[ImportedLocalFile], Error>?
     @State private var errorMessage: String? = nil
     @State private var isEditing = false
     @State private var showSuccessAlert = false
@@ -122,27 +123,18 @@ struct PrivateKeyTextInputView: View {
                 }
             }
             #if !os(tvOS)
-            .fileImporter(
-                isPresented: $showFilePicker,
-                allowedContentTypes: allowedKeyImportTypes,
-                allowsMultipleSelection: false
-            ) { result in
-                switch result {
-                case .success(let urls):
-                    if let url = urls.first {
-                        _ = url.startAccessingSecurityScopedResource()
-                        defer { url.stopAccessingSecurityScopedResource() }
-                        do {
-                            let content = try String(contentsOf: url, encoding: .utf8)
-                            text = content
-                            isEditing = false
-                            errorMessage = nil
-                        } catch {
-                            errorMessage = "Failed to read file: \(error.localizedDescription)"
-                        }
+            .sheet(isPresented: $showFilePicker, onDismiss: {
+                guard let result = importedTextFile else { return }
+                importedTextFile = nil
+                do {
+                    if let file = try result.get().first {
+                        guard let content = String(data: file.data, encoding: .utf8) else { throw CocoaError(.fileReadInapplicableStringEncoding) }
+                        text = content; isEditing = false; errorMessage = nil
                     }
-                case .failure(let error):
-                    errorMessage = "Failed to select file: \(error.localizedDescription)"
+                } catch { errorMessage = "Failed to read private key text: \(error.localizedDescription)" }
+            }) {
+                LocalFilePicker { result in
+                    importedTextFile = result; showFilePicker = false
                 }
             }
             #endif
