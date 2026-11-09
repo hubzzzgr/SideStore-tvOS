@@ -39,13 +39,7 @@ final class IntentHandler: NSObject, RefreshAllIntentHandling
         // Give ourselves 9 extra seconds before starting handle() timeout timer.
         // 10 seconds or longer results in timeout regardless.
         self.queue.asyncAfter(deadline: .now() + 8.0) {
-            Task {
-                if await isAppleTVReady().isSuccess {
-                    self.finish(intent, response: RefreshAllIntentResponse(code: .success, userActivity: nil))
-                } else {
-                    self.finish(intent, response: RefreshAllIntentResponse(code: .failure, userActivity: nil))
-                }
-            }
+            self.finish(intent, response: RefreshAllIntentResponse(code: .inProgress, userActivity: nil))
         }
         
         Task<Void, Never>.detached(priority: .userInitiated) {
@@ -83,13 +77,7 @@ final class IntentHandler: NSObject, RefreshAllIntentHandling
                     // We took too long to finish and return the final result,
                     // so we'll now present a normal notification when finished.
                     operation.presentsFinishedNotification = true
-                    Task {
-                        if await isAppleTVReady().isSuccess {
-                            self.finish(intent, response: RefreshAllIntentResponse(code: .success, userActivity: nil))
-                        } else {
-                            self.finish(intent, response: RefreshAllIntentResponse(code: .failure, userActivity: nil))
-                        }
-                    }
+                    self.finish(intent, response: RefreshAllIntentResponse(code: .inProgress, userActivity: nil))
                 }
                 
                 self.finish(intent, response: RefreshAllIntentResponse(code: .inProgress, userActivity: nil))

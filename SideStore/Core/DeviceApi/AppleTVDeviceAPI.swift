@@ -29,17 +29,6 @@ func removeApp(_ bundleID: String) async throws {
     let connection = try await AppleTVManager.shared.ready()
     try await connection.uninstall(bundleIdentifier: bundleID)
 }
-func sendIpaAfc(_ bundleID: String, _ bytes: Data) async throws {
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ipa")
-    try bytes.write(to: url, options: [.atomic, .completeFileProtection])
-    defer { try? FileManager.default.removeItem(at: url) }
-    try await AppleTVManager.shared.stage(bundleID: bundleID, url: url)
-}
-func sendAppBundleAfc(_ bundleID: String, at url: URL) async throws {
-    throw OperationError.invalidParameters("Apple TV installation requires a packaged tvOS IPA.")
-}
-func installIPA(_ bundleID: String) async throws { try await AppleTVManager.shared.install(bundleID: bundleID) }
-func installAppBundle(_ bundleID: String, appName: String) async throws { try await installIPA(bundleID) }
 func safeDebugApp(_ bundleID: String) async throws {
     throw OperationError.invalidParameters("Process debugging is not part of the Apple TV sideloading fork.")
 }

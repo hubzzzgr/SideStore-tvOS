@@ -65,7 +65,7 @@ public final class MaintenanceManager {
                 AnisetteDataManager.shared.clearCache()
                 await AuthManager.shared.signOut(keepCertificate: true, keepAnisetteData: false)
             case 3:
-                UserDefaults.standard.tunnelOverridePeerIp = nil
+                UserDefaults.standard.removeObject(forKey: "tunnelOverridePeerIp")
             case 4:
                 await migrateLegacyCachedAppBundles()
             case 5:

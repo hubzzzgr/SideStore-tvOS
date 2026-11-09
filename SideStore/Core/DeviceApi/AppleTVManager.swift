@@ -200,9 +200,7 @@ final class AppleTVManager: ObservableObject {
         guard !parts.isEmpty else { throw OperationError.invalidParameters("Invalid tvOS version.") }
         let actual = OperatingSystemVersion(majorVersion: parts[0], minorVersion: parts.count > 1 ? parts[1] : 0, patchVersion: parts.count > 2 ? parts[2] : 0)
         let required = app.minimumiOSVersion
-        let actualNumber = actual.majorVersion * 1_000_000 + actual.minorVersion * 1000 + actual.patchVersion
-        let minimumNumber = required.majorVersion * 1_000_000 + required.minorVersion * 1000 + required.patchVersion
-        guard actualNumber >= minimumNumber else { throw OperationError.invalidApp(reason: "This IPA requires a newer tvOS version than the selected Apple TV.") }
+        guard actual >= required else { throw OperationError.invalidApp(reason: "This IPA requires a newer tvOS version than the selected Apple TV.") }
         for ext in app.appExtensions {
             let platforms = ext.infoPlist["CFBundleSupportedPlatforms"] as? [String] ?? []
             guard platforms == ["AppleTVOS"] else { throw OperationError.invalidApp(reason: "The IPA contains a non-tvOS extension.") }
