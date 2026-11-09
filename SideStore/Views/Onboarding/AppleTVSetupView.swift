@@ -26,7 +26,7 @@ struct AppleTVSetupView: View {
             if !model.saved.isEmpty { savedTVs }
             nearbyTVs
             manualAddress
-            if ready { installedApps }
+            if ready && !busy { installedApps }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
@@ -99,8 +99,8 @@ struct AppleTVSetupView: View {
                 if busy { ProgressView() }
                 else { Image(systemName: ready ? "checkmark.circle.fill" : "appletv").foregroundStyle(ready ? Color.green : accent) }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(ready ? "Ready to Install" : busy ? "Connecting to Apple TV…" : "Connection").font(.headline)
-                    Text(ready ? "Import a tvOS IPA in My Apps to get started." : model.status)
+                    Text(busy ? "Connecting to Apple TV…" : ready ? "Ready to Install" : "Connection").font(.headline)
+                    Text(ready && !busy ? "Import a tvOS IPA in My Apps to get started." : model.status)
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
             }.padding(.vertical, 4)
@@ -144,7 +144,7 @@ struct AppleTVSetupView: View {
         Section {
             if nearby.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Looking for Apple TVs…", systemImage: "wifi").font(.headline)
+                    Label(discovery.scanning ? "Looking for Apple TVs…" : "No Apple TVs Found", systemImage: "wifi").font(.headline)
                     Text("Allow Local Network access for SideTVstore and leave the pairing screen open on your TV.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }.padding(.vertical, 8)
