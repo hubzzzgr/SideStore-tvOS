@@ -17,6 +17,7 @@ public enum TVInstallationError: Error, LocalizedError {
 actor RemotePlistService {
     let stream: any ByteTransport
     init(stream: any ByteTransport) { self.stream = stream }
+    func close() async { if let tunnelStream = stream as? TunnelTCPTransport { await tunnelStream.finish() } }
     func open() async throws {
         try await stream.connect(timeout: 10)
         try await send(["Label": "SideStoreTV", "ProtocolVersion": "2", "Request": "RSDCheckin"])
@@ -137,19 +138,22 @@ extension DeveloperConnection {
         guard let port = Self.port(availableServices[name]) else { throw TVInstallationError.missingService(name) }
         let stream = try TunnelTCPTransport(tunnel: tunnel, port: port)
         let client = RemotePlistService(stream: stream)
-        try await client.open()
+        do { try await client.open() }
+        catch { await client.close(); throw error }
         return client
+    }
+    private func usingService<T>(_ name: String, _ body: (RemotePlistService) async throws -> T) async throws -> T {
+        let client = try await appService(name)
+        do { let result = try await body(client); await client.close(); return result }
+        catch { await client.close(); throw error }
     }
     public func verifyInstallationServices() async throws {
         try beginAppOperation(); defer { operating = false }
         // Actual protocol probes, not just advertised ports.
-        let installation = try await appService("com.apple.mobile.installation_proxy.shim.remote")
-        try await installation.send(["Command": "Lookup", "ClientOptions": ["ApplicationType": "User"]])
-        let result = try await installation.receive()
-        try RemotePlistService.checkError(result)
-        guard result["LookupResult"] is [String: Any] else { throw TVInstallationError.protocolFailure("installation Lookup") }
-        let afc = try await appService("com.apple.afc.shim.remote")
-        _ = try await RemoteAFC(stream: afc.stream).request(11, accepting: [2])
+        _ = try await lookup()
+        try await usingService("com.apple.afc.shim.remote") { afc in
+            _ = try await RemoteAFC(stream: afc.stream).request(11, accepting: [2])
+        }
     }
     private func beginAppOperation() throws {
         guard !operating else { throw TVInstallationError.busy }
@@ -158,51 +162,56 @@ extension DeveloperConnection {
     }
     public func stageIPA(_ url: URL) async throws -> String {
         try beginAppOperation(); defer { operating = false }
-        let service = try await appService("com.apple.afc.shim.remote")
-        let afc = RemoteAFC(stream: service.stream)
         let directory = "PublicStaging/SideStoreTV-" + UUID().uuidString
-        try await afc.directory(directory)
         let path = directory + "/Application.ipa"
-        do { try await afc.upload(url, path: path); return path }
-        catch { try? await afc.remove(path); try? await afc.remove(directory); throw error }
+        return try await usingService("com.apple.afc.shim.remote") { service in
+            let afc = RemoteAFC(stream: service.stream)
+            try await afc.directory(directory)
+            do { try await afc.upload(url, path: path); return path }
+            catch { try? await afc.remove(path); try? await afc.remove(directory); throw error }
+        }
     }
     public func removeStagedIPA(_ path: String) async throws {
         guard path.hasPrefix("PublicStaging/SideStoreTV-"), path.hasSuffix("/Application.ipa"), !path.contains("..") else {
             throw TVInstallationError.protocolFailure("staging path")
         }
         try beginAppOperation(); defer { operating = false }
-        let service = try await appService("com.apple.afc.shim.remote")
-        let afc = RemoteAFC(stream: service.stream)
-        try await afc.remove(path)
-        try await afc.remove(String(path.dropLast("/Application.ipa".count)))
+        try await usingService("com.apple.afc.shim.remote") { service in
+            let afc = RemoteAFC(stream: service.stream)
+            try await afc.remove(path)
+            try await afc.remove(String(path.dropLast("/Application.ipa".count)))
+        }
     }
     public func lookupApps() async throws -> [String: String] {
         try beginAppOperation(); defer { operating = false }
         return try await lookup()
     }
     private func lookup() async throws -> [String: String] {
-        let client = try await appService("com.apple.mobile.installation_proxy.shim.remote")
-        try await client.send(["Command": "Lookup", "ClientOptions": ["ApplicationType": "User", "ReturnAttributes": ["CFBundleIdentifier", "CFBundleDisplayName", "CFBundleName", "CFBundleShortVersionString"]]])
-        let response = try await client.receive()
-        try RemotePlistService.checkError(response)
-        guard let apps = response["LookupResult"] as? [String: [String: Any]] else { throw TVInstallationError.protocolFailure("application inventory") }
-        return apps.mapValues { ($0["CFBundleDisplayName"] ?? $0["CFBundleName"]) as? String ?? "App" }
+        try await usingService("com.apple.mobile.installation_proxy.shim.remote") { client in
+            try await client.send(["Command": "Lookup", "ClientOptions": ["ApplicationType": "User", "ReturnAttributes": ["CFBundleIdentifier", "CFBundleDisplayName", "CFBundleName", "CFBundleShortVersionString"]]])
+            let response = try await client.receive()
+            try RemotePlistService.checkError(response)
+            guard let apps = response["LookupResult"] as? [String: [String: Any]] else { throw TVInstallationError.protocolFailure("application inventory") }
+            return apps.mapValues { ($0["CFBundleDisplayName"] ?? $0["CFBundleName"]) as? String ?? "App" }
+        }
     }
     public func install(stagedPath: String, bundleIdentifier: String) async throws {
         try beginAppOperation(); defer { operating = false }
         guard stagedPath.hasPrefix("PublicStaging/SideStoreTV-"), !stagedPath.contains("..") else { throw TVInstallationError.protocolFailure("package path") }
         let existing = try await lookup()
-        let client = try await appService("com.apple.mobile.installation_proxy.shim.remote")
-        try await client.send(["Command": existing[bundleIdentifier] == nil ? "Install" : "Upgrade", "PackagePath": stagedPath, "ClientOptions": ["PackageType": "Developer"]])
-        // A lost connection here is an uncertain result. Never replay mutations.
-        try await client.completion()
+        try await usingService("com.apple.mobile.installation_proxy.shim.remote") { client in
+            try await client.send(["Command": existing[bundleIdentifier] == nil ? "Install" : "Upgrade", "PackagePath": stagedPath, "ClientOptions": ["PackageType": "Developer"]])
+            // A lost connection here is an uncertain result. Never replay mutations.
+            try await client.completion()
+        }
         guard try await lookup()[bundleIdentifier] != nil else { throw TVInstallationError.protocolFailure("post-install inventory") }
     }
     public func uninstall(bundleIdentifier: String) async throws {
         try beginAppOperation(); defer { operating = false }
-        let client = try await appService("com.apple.mobile.installation_proxy.shim.remote")
-        try await client.send(["Command": "Uninstall", "ApplicationIdentifier": bundleIdentifier, "ClientOptions": [:]])
-        try await client.completion()
+        try await usingService("com.apple.mobile.installation_proxy.shim.remote") { client in
+            try await client.send(["Command": "Uninstall", "ApplicationIdentifier": bundleIdentifier, "ClientOptions": [:]])
+            try await client.completion()
+        }
         guard try await lookup()[bundleIdentifier] == nil else { throw TVInstallationError.protocolFailure("post-uninstall inventory") }
     }
     public func installProfile(_ data: Data) async throws {
@@ -214,11 +223,12 @@ extension DeveloperConnection {
         try await profileRequest(["MessageType": "Remove", "ProfileID": identifier, "ProfileType": "Provisioning"])
     }
     private func profileRequest(_ request: [String: Any]) async throws {
-        let client = try await appService("com.apple.misagent.shim.remote")
-        try await client.send(request)
-        let response = try await client.receive()
-        try RemotePlistService.checkError(response)
-        guard let status = response["Status"] as? NSNumber else { throw TVInstallationError.protocolFailure("misagent status") }
-        guard status.intValue == 0 else { throw TVInstallationError.deviceRejected("misagent status \(status.intValue)") }
+        try await usingService("com.apple.misagent.shim.remote") { client in
+            try await client.send(request)
+            let response = try await client.receive()
+            try RemotePlistService.checkError(response)
+            guard let status = response["Status"] as? NSNumber else { throw TVInstallationError.protocolFailure("misagent status") }
+            guard status.intValue == 0 else { throw TVInstallationError.deviceRejected("misagent status \(status.intValue)") }
+        }
     }
 }

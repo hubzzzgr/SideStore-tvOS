@@ -54,6 +54,8 @@ public final class TunnelTCPTransport: ByteTransport, @unchecked Sendable {
     public func send(_ data: Data, timeout: TimeInterval) async throws { try await stream.send(data, timeout: timeout) }
     public func readExactly(_ count: Int, timeout: TimeInterval) async throws -> Data { try await stream.readExactly(count, timeout: timeout) }
     public func cancel() { upstream.cancel() }
+    /// Close only this service, retaining the authenticated carrier and RSD.
+    public func finish() async { await stream.finish() }
 }
 
 actor TunnelTCPStream {
@@ -69,6 +71,12 @@ actor TunnelTCPStream {
     var buffer = Data()
     var connected = false
     var ended = false
+
+    func finish() async {
+        if connected && !ended { try? await emit(flags: 0x11); sequence &+= 1 }
+        ended = true; connected = false
+        await router.unregister(localPort: sourcePort)
+    }
 
     init(upstream: any ByteTransport, router: TunnelPacketRouter, configuration: TunnelConfiguration, port: UInt16) throws {
         guard let source = IPv6TCPPacket.address(configuration.clientAddress), let destination = IPv6TCPPacket.address(configuration.serverAddress), port > 0 else { throw TVPairError.invalidEndpoint }
@@ -161,6 +169,7 @@ actor TunnelPacketRouter {
     private var streams: [UInt16: Entry] = [:]
     private var reading = false
     init(upstream: any ByteTransport, configuration: TunnelConfiguration) { self.upstream = upstream; self.configuration = configuration }
+    func unregister(localPort: UInt16) { streams.removeValue(forKey: localPort) }
     func register(_ stream: TunnelTCPStream, remotePort: UInt16) throws -> UInt16 {
         streams = streams.filter { $0.value.stream != nil }
         guard streams.count < 8 else { throw TVPairError.malformed("tunnel stream registration limit") }
