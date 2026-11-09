@@ -105,6 +105,13 @@ simultaneous per-TV app libraries are not implemented.
   and the TV awake for initial testing. Automatic unattended seven-day refresh
   is not guaranteed. iPhone self-refresh, VPN setup, JIT/process controls, and
   SideBackup/helper-extension packaging are excluded from the TV experience.
+- The controller cannot renew its own iPhone installation through the Apple TV.
+  If its initial installation uses an expiring development profile, it must be
+  re-signed and reinstalled before or after expiry using that installation
+  method. Apple's [Personal Team profiles expire after seven days](https://developer.apple.com/help/account/basics/about-your-developer-account).
+  Indefinite operation after a single initial installation therefore depends
+  on how the controller is installed; this fork cannot promise it for free
+  development signing. TV app refresh does not renew the controller.
 - LiveContainer guest Keychain and Local Network access depend on its host.
   A successful standalone build does not establish LiveContainer compatibility.
 

@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 
 
 ASSETS = [
@@ -27,9 +28,20 @@ def main():
     cache.mkdir(parents=True, exist_ok=True)
     for repo, tag, name, checksum, suffixes in ASSETS:
         with tempfile.TemporaryDirectory(prefix="sidestore-tv-binary-") as directory:
-            subprocess.run(["gh", "release", "download", tag, "-R", repo,
-                            "--pattern", name, "--dir", directory], check=True)
-            data = (Path(directory) / name).read_bytes()
+            for attempt in range(3):
+                destination = Path(directory) / str(attempt)
+                destination.mkdir()
+                try:
+                    subprocess.run(["gh", "release", "download", tag, "-R", repo,
+                                    "--pattern", name, "--dir", str(destination)],
+                                   check=True, timeout=180)
+                    break
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                    if attempt == 2:
+                        raise
+                    print(f"Release download failed; retrying {repo} {tag}", flush=True)
+                    time.sleep(5 * (attempt + 1))
+            data = (destination / name).read_bytes()
             if hashlib.sha256(data).hexdigest() != checksum:
                 raise RuntimeError(f"Checksum mismatch for {repo} {tag}: refusing binary")
             for suffix in suffixes:
