@@ -10,7 +10,7 @@ I kept SideStore's Apple ID sign-in, signing, IPA management, and familiar inter
 
 ## Tested setup
 
-I've tested this on a physical iPhone running **iOS 27.0**, installing apps on a physical Apple TV running **tvOS 27.2**. **It also works perfectly inside LiveContainer in my setup.** The screenshots below are from my testing.
+tested this on a physical iPhone running **iOS 27.0**, installing apps on a physical Apple TV running **tvOS 27.2**. **It also works perfectly inside LiveContainer in my setup.** The screenshots below are from my testing.
 
 These results describe my setup, rather than every iPhone, Apple TV, firmware version, or LiveContainer configuration. The iPhone app targets iOS 17 and later; other combinations still need testing.
 
@@ -63,6 +63,6 @@ xcodebuild -project AltStore.xcodeproj -scheme SideStore -configuration Release 
 
 ## Credits and source
 
-I maintain the tvOS port as [@hbzgr009](https://x.com/hbzgr009?s=11). This project builds on [SideStore](https://github.com/SideStore/SideStore), originally forked from [AltStore](https://github.com/altstoreio/AltStore), and my [TVPair pairing POC](https://github.com/hubzzzgr/tvOS-pairtest). The original authorship, AGPL-3.0 license, and third-party notices remain intact. This fork has been developed with AI assistance.
+This project builds on [SideStore](https://github.com/SideStore/SideStore), originally forked from [AltStore](https://github.com/altstoreio/AltStore), and my [TVPair pairing POC](https://github.com/hubzzzgr/tvOS-pairtest). The original authorship, AGPL-3.0 license, and third-party notices remain intact. This fork has been developed with AI assistance.
 
 Development is on the [`tvos` branch](https://github.com/hubzzzgr/SideStore-tvOS/tree/tvos).
