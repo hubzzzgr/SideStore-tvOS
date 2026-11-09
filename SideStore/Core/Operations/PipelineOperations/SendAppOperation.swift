@@ -28,26 +28,11 @@ final class SendAppOperation: BasePipelineOperation<InstallAppOperationContext, 
         }
 
         let bundleIdentifier = self.context.targetBundleIdentifier
-        let appURL = resignedAppBundle.fileURL
-        verboseLog("[SendAppOperation] AFC App Bundle `fileURL`: \(appURL.absoluteString)")
-
-        do {
-
-            
-            if UserDefaults.standard.preferResignedIPA, let ipaURL = self.context.ipaURL {
-                debugLog("[SendAppOperation] Sending IPA at \(ipaURL.path) via AFC...")
-                try await AppleTVManager.shared.stage(bundleID: bundleIdentifier, url: ipaURL)
-            } else {
-                debugLog("[SendAppOperation] Sending App Bundle at \(appURL.path) via AFC...")
-                try await sendAppBundleAfc(bundleIdentifier, at: appURL)
-            }
-            self.setProgress(100)
-        } catch {
-
-
-            debugLog("[SendAppOperation] Failed to send app at \(self.context.ipaURL?.path ?? appURL.path): \(error)")
-            throw error
+        guard let ipaURL = self.context.ipaURL else {
+            throw OperationError.invalidParameters("The signed tvOS IPA has not been packaged.")
         }
+        try await AppleTVManager.shared.stage(bundleID: bundleIdentifier, url: ipaURL)
+        self.setProgress(100)
         return resignedAppBundle
     }
 }

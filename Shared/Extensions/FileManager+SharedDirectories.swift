@@ -14,12 +14,15 @@ public extension FileManager
         #if os(tvOS)
         return self.cachesDirectory
         #else
-        guard let appGroup = Bundle.main.altstoreAppGroup else {
+        // This fork has one iPhone controller and no helper/widget targets.
+        // Keep its library in the sandbox without requiring an App Group.
+        let directory = self.applicationSupportDirectory.appendingPathComponent("SideStoreTV", isDirectory: true)
+        do {
+            try self.createDirectory(at: directory, withIntermediateDirectories: true)
+            return directory
+        } catch {
             return nil
         }
-        
-        let sharedDirectoryURL = self.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
-        return sharedDirectoryURL
         #endif
     }
     

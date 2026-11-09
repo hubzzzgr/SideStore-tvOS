@@ -113,7 +113,7 @@ open class PersistentContainer: NSPersistentContainer, @unchecked Sendable {
         #if !os(tvOS)
         guard FileManager.default.altstoreSharedDirectory != nil else {
             throw DatabaseError.missingAppGroup(
-                reason: NSLocalizedString("Unable to access the shared App Group container. Refusing to create or use a private sandbox fallback database.", comment: "")
+                reason: NSLocalizedString("Unable to access the controller's private application storage.", comment: "")
             )
         }
         #endif

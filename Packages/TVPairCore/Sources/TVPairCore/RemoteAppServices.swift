@@ -198,7 +198,7 @@ extension DeveloperConnection {
             return apps.mapValues { ($0["CFBundleDisplayName"] ?? $0["CFBundleName"]) as? String ?? "App" }
         }
     }
-    public func install(stagedPath: String, bundleIdentifier: String) async throws {
+    public func install(stagedPath: String, bundleIdentifier: String, version: String? = nil, build: String? = nil) async throws {
         try beginAppOperation(); defer { operating = false }
         guard stagedPath.hasPrefix("PublicStaging/SideStoreTV-"), !stagedPath.contains("..") else { throw TVInstallationError.protocolFailure("package path") }
         let existing = try await lookup()
@@ -207,7 +207,16 @@ extension DeveloperConnection {
             // A lost connection here is an uncertain result. Never replay mutations.
             try await client.completion()
         }
-        guard try await lookup()[bundleIdentifier] != nil else { throw TVInstallationError.protocolFailure("post-install inventory") }
+        try await usingService("com.apple.mobile.installation_proxy.shim.remote") { client in
+            try await client.send(["Command": "Lookup", "ClientOptions": ["BundleIDs": [bundleIdentifier], "ReturnAttributes": ["CFBundleIdentifier", "CFBundleShortVersionString", "CFBundleVersion"]]])
+            let response = try await client.receive()
+            try RemotePlistService.checkError(response)
+            guard let apps = response["LookupResult"] as? [String: [String: Any]], let app = apps[bundleIdentifier],
+                  version == nil || app["CFBundleShortVersionString"] as? String == version,
+                  build == nil || app["CFBundleVersion"] as? String == build else {
+                throw TVInstallationError.protocolFailure("post-install bundle/version inventory")
+            }
+        }
     }
     public func uninstall(bundleIdentifier: String) async throws {
         try beginAppOperation(); defer { operating = false }

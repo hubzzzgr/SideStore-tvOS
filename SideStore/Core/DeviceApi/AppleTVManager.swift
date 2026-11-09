@@ -218,8 +218,8 @@ final class AppleTVManager: ObservableObject {
     }
     func validateProfile(_ profile: ALTProvisioningProfile) async throws {
         let udid = try await deviceUDID()
-        // SideSign validates the CMS profile while parsing it. Read its embedded
-        // plist here to additionally enforce the target platform before signing.
+        // SideSign decodes the profile. Inspect its platform before signing;
+        // the TV separately enforces the Apple CMS signature during installation.
         guard let start = profile.data.range(of: Data("<?xml".utf8)),
               let end = profile.data.range(of: Data("</plist>".utf8), in: start.lowerBound..<profile.data.endIndex),
               let dictionary = try PropertyListSerialization.propertyList(from: profile.data.subdata(in: start.lowerBound..<end.upperBound), format: nil) as? [String: Any] else {
@@ -235,10 +235,10 @@ final class AppleTVManager: ObservableObject {
         let connection = try await ready()
         staged[bundleID] = try await connection.stageIPA(url)
     }
-    func install(bundleID: String) async throws {
+    func install(bundleID: String, expectedBundleID: String? = nil, version: String? = nil, build: String? = nil) async throws {
         guard let path = staged.removeValue(forKey: bundleID), let developer else { throw OperationError.invalidParameters("No package has been staged on the selected Apple TV.") }
         do {
-            try await developer.install(stagedPath: path, bundleIdentifier: bundleID)
+            try await developer.install(stagedPath: path, bundleIdentifier: expectedBundleID ?? bundleID, version: version, build: build)
             try? await developer.removeStagedIPA(path)
         } catch {
             try? await developer.removeStagedIPA(path)

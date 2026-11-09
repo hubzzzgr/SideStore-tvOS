@@ -185,11 +185,10 @@ final class InstallAppOperation: BasePipelineOperation<InstallAppOperationContex
         }
         
         // Phase 2: App installation
-        if UserDefaults.standard.preferResignedIPA {
-            try await installIPA(bundleID)
-        } else {
-            try await installAppBundle(bundleID, appName: resignedAppBundle.fileURL.lastPathComponent)
-        }
+        try await AppleTVManager.shared.install(bundleID: bundleID,
+                                               expectedBundleID: resignedAppBundle.bundleIdentifier,
+                                               version: resignedAppBundle.version,
+                                               build: resignedAppBundle.buildVersion.isEmpty ? nil : resignedAppBundle.buildVersion)
         
         self.setProgress(90)
         

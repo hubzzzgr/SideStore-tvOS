@@ -9,7 +9,7 @@ Experimental SideStore fork for signing and managing tvOS IPAs over local Wi-Fi,
 The inherited authentication, signing, IPA cache and relevant My Apps/Settings UI remain in this repository. Development changes are on the `tvos` branch. SideStore's AGPL-3.0 license and attribution are preserved.
 
 
-Build locally on macOS with Xcode 16.4 or newer:
+Build locally on macOS with Xcode 26.3 or newer:
 
 ```sh
 git submodule update --init --recursive

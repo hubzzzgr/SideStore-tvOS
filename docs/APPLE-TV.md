@@ -120,7 +120,7 @@ Logs or screenshots shared for validation must omit credentials and UDIDs.
 ## Build and source
 
 The `Build Apple TV controller IPA` workflow runs on GitHub-hosted `macos-15`.
-It verifies the upstream OpenSSL binary checksum, runs native protocol tests,
+It selects Xcode 26.3, verifies the pinned binary checksums, runs native protocol tests,
 archives `generic/platform=iOS` with `ARCHS=arm64` and signing disabled, strips
 distributor signatures from the packaged copy, and uploads the IPA, SHA-256 and
 diagnostic logs. It never exports with an Apple provisioning profile. The
