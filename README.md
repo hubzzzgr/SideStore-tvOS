@@ -8,7 +8,7 @@ I kept SideStore's Apple ID sign-in, signing, IPA management, and familiar inter
 
 **[Download the IPA](https://github.com/hubzzzgr/SideStore-tvOS/releases/download/v0.7.0-tvos.0702/SideTVstore-unsigned.ipa)** · [Release notes](https://github.com/hubzzzgr/SideStore-tvOS/releases) · [Detailed setup and platform limits](docs/APPLE-TV.md)
 
-## My tested setup
+## Tested setup
 
 I've tested this on a physical iPhone running **iOS 27.0**, installing apps on a physical Apple TV running **tvOS 27.2**. **It also works perfectly inside LiveContainer in my setup.** The screenshots below are from my testing.
 
@@ -22,15 +22,15 @@ These results describe my setup, rather than every iPhone, Apple TV, firmware ve
   <img src="docs/images/my-apps.jpg" width="250" alt="My Apps showing installed Apple TV apps, icons, expiry dates, and upload progress" />
 </p>
 
-## What I can do with it
+## Features
 
 - **Pair over Wi-Fi:** find nearby Apple TVs, enter the code shown on the TV, and save the pairing for automatic reconnection. I can also enter an IP address if discovery doesn't find my TV.
 - **Set up developer access automatically:** setup runs the TVPair developer-trust procedure and checks that the necessary services actually respond before allowing installation.
 - **Install and manage tvOS IPAs:** import an IPA, sign it with my Apple ID or an imported signing certificate, and install, update, refresh, or uninstall it on the selected TV.
-- **Keep track of my apps:** My Apps shows artwork, signing expiry, refresh controls, and visible upload stages and byte counts.
+- **Keep track of my apps:** My Apps shows artwork, signing expiry, refresh controls.
 - **Import and export pairing files:** back up or restore a saved Remote Pairing plist through Files. Saved credentials stay in the iPhone's Keychain; exported files contain private credentials and need to be kept private.
-- **Keep the SideStore options I use:** sources, Anisette server settings, signing-certificate management, themes, and user customizations are still available.
-- **Use LiveContainer:** run the controller inside LiveContainer, as I've done on my tested setup.
+- **Upload status:** Show upload status with byte count.
+- **Use LiveContainer:** Works perfectly inside livecontainer
 
 ## Getting started
 
