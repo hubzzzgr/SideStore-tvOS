@@ -44,6 +44,7 @@ final class AppleTVManager: ObservableObject {
     }
     func load() async throws { saved = try await vault.load() }
     func importPairing(_ data: Data) async throws {
+        await stopIconRefresh()
         guard leases == 0, !busy, connecting == nil else { throw TVInstallationError.busy }
         var record = try PairingRecord.importPlist(data)
         guard record.peerPublicKey != nil, record.peerIdentifier != nil else {
@@ -66,7 +67,6 @@ final class AppleTVManager: ObservableObject {
         status = "Pairing imported. Connect to verify this Apple TV."
     }
     func exportPairing(_ id: UUID) async throws -> Data {
-        guard leases == 0, !busy, connecting == nil else { throw TVInstallationError.busy }
         return try await vault.record(id: id).exportPlist()
     }
     func startDiscovery() { discovery.start() }
@@ -210,10 +210,7 @@ final class AppleTVManager: ObservableObject {
     }
     func beginOperations() async throws {
         // App mutations take priority over optional, read-only icon retrieval.
-        if let iconRefresh {
-            iconRefresh.cancel(); connecting?.cancel(); developer?.cancel()
-            await iconRefresh.value
-        }
+        await stopIconRefresh()
         guard leases == 0, !busy else { throw TVInstallationError.busy }
         leases = 1
         do { _ = try await ready(force: true) }
@@ -227,6 +224,12 @@ final class AppleTVManager: ObservableObject {
         staged.removeAll(); developer = nil; readyAt = .distantPast; leases = 0
         readiness.send(.success(false))
         NotificationCenter.default.post(name: Self.operationsDidFinish, object: nil)
+    }
+    private func stopIconRefresh() async {
+        if let iconRefresh {
+            iconRefresh.cancel(); connecting?.cancel(); developer?.cancel()
+            await iconRefresh.value
+        }
     }
     func refreshIcons(_ requests: [AppleTVIconRequest]) {
         guard !requests.isEmpty, leases == 0, !busy, connecting == nil, iconRefresh == nil else { return }
@@ -341,6 +344,8 @@ final class AppleTVManager: ObservableObject {
         transferStatus = "Installing on Apple TV…"
         do {
             try await developer.install(stagedPath: path, bundleIdentifier: expectedBundleID ?? bundleID, version: version, build: build)
+            let icon = InstalledApp.appsDirectoryURL.appendingPathComponent(expectedBundleID ?? bundleID).appendingPathComponent("AppleTVIcon.png")
+            try? FileManager.default.removeItem(at: icon)
             try? await developer.removeStagedIPA(path)
             transferStatus = nil
         } catch {

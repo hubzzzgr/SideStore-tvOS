@@ -332,7 +332,7 @@ public extension InstalledApp
         let cachedIconURL = self.directoryURL.appendingPathComponent("AppleTVIcon.png")
         let sourceIconURL = self.storeApp?.iconURL
         
-        let localIcon = await Task.detached(priority: .userInitiated) {
+        let localIcon = await Task.detached(priority: .userInitiated) { () -> UIImage? in
             if hasAlternateIcon,
                let data = try? Data(contentsOf: alternateIconURL),
                let icon = UIImage(data: data)
