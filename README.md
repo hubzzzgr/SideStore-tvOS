@@ -40,13 +40,6 @@ These results describe my setup, rather than every iPhone, Apple TV, firmware ve
 4. In SideTVstore's **Apple TV** tab, choose your TV and enter its on-screen code. Wait for **Ready to Install**.
 5. Sign in with your Apple ID in Settings, or configure your signing certificate. In **My Apps**, tap **+** and choose a decrypted, device-compatible **tvOS IPA**.
 
-## Things to know
-
-Apple's signing limits, provisioning permissions, expiry dates, and entitlement restrictions still apply. Internet access is needed for Apple authentication/provisioning and downloads. On-device Anisette is the default and may download its libraries during setup; optional remote Anisette providers remain configurable.
-
-I can keep several pairing records, but the tracked app library manages one TV at a time. TV app refresh does not renew the iPhone controller's own installation, and unattended background refresh is not guaranteed. See [the detailed guide](docs/APPLE-TV.md) for service availability, firmware restrictions, and troubleshooting.
-
-Build 0702 still contains the inherited archive-extraction, sensitive-logging, and ODA integrity issues identified in the security review. This release does not include fixes for those findings.
 
 ## Building
 
