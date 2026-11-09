@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A84596F62F7DC4C90000B8CD /* SideStore.conf in Resources */ = {isa = PBXBuildFile; fileRef = A84596F52F7DC4C90000B8CD /* SideStore.conf */; };
-		A87939D3303A89CA004D9227 /* Minimuxer in Frameworks */ = {isa = PBXBuildFile; productRef = A87939D2303A89CA004D9227 /* Minimuxer */; };
+		A87939D3303A89CA004D9227 /* TVPairCore in Frameworks */ = {isa = PBXBuildFile; productRef = A87939D2303A89CA004D9227 /* TVPairCore */; };
 		A8C37029302DA7F30010213A /* MarkdownKit in Frameworks */ = {isa = PBXBuildFile; platformFilter = ios; productRef = A8C37028302DA7F30010213A /* MarkdownKit */; };
 		A8C3702C302DA80D0010213A /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = A8C3702B302DA80D0010213A /* KeychainAccess */; };
 		A8C3702F302DA82A0010213A /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = A8C3702E302DA82A0010213A /* Nuke */; };
@@ -255,7 +255,7 @@
 				A8C3702F302DA82A0010213A /* Nuke in Frameworks */,
 				A8C37035302DA84D0010213A /* Starscream in Frameworks */,
 				A8C37039302DA8D90010213A /* SemanticVersion in Frameworks */,
-				A87939D3303A89CA004D9227 /* Minimuxer in Frameworks */,
+				A87939D3303A89CA004D9227 /* TVPairCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -351,16 +351,12 @@
 			buildPhases = (
 				BFD247662284B9A500981D42 /* Sources */,
 				BFD247672284B9A500981D42 /* Frameworks */,
-				A8E00D3F2D0C9C6D000DD2C7 /* Build SideBackup.ipa */,
 				BFD247682284B9A500981D42 /* Resources */,
 				BF088D2B2501A087008082D9 /* Embed Frameworks */,
-				BF98917B250AABF4002ACF50 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				0ED4AEC92E6DDB2A0039E2C0 /* PBXTargetDependency */,
-				BF989176250AABF4002ACF50 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A8EEC3482F4B0D8600F2436D /* Shared */,
@@ -374,7 +370,7 @@
 				A8C3702E302DA82A0010213A /* Nuke */,
 				A8C37034302DA84D0010213A /* Starscream */,
 				A8C37038302DA8D90010213A /* SemanticVersion */,
-				A87939D2303A89CA004D9227 /* Minimuxer */,
+				A87939D2303A89CA004D9227 /* TVPairCore */,
 				A8F5E9AE30422E3600DBD7E1 /* SideSign */,
 			);
 			productName = AltStore;
@@ -429,7 +425,7 @@
 				A8C3702D302DA82A0010213A /* XCRemoteSwiftPackageReference "Nuke" */,
 				A8C37033302DA84D0010213A /* XCRemoteSwiftPackageReference "Starscream" */,
 				A8C37037302DA8D90010213A /* XCRemoteSwiftPackageReference "SemanticVersion" */,
-				A87939D1303A89C9004D9227 /* XCLocalSwiftPackageReference "Dependencies/minimuxer" */,
+				A87939D1303A89C9004D9227 /* XCLocalSwiftPackageReference "Packages/TVPairCore" */,
 				A8E8DEA43059BC8800F69B47 /* XCRemoteSwiftPackageReference "CodeSignKit" */,
 			);
 			productRefGroup = BFD2476B2284B9A500981D42 /* Products */;
@@ -542,7 +538,7 @@
 				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
 				ENABLE_DEBUG_DYLIB = NO;
 				INFOPLIST_FILE = SideBackup/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -574,7 +570,7 @@
 				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
 				ENABLE_DEBUG_DYLIB = NO;
 				INFOPLIST_FILE = SideBackup/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -610,7 +606,7 @@
 				ENABLE_DEBUG_DYLIB = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				INFOPLIST_FILE = AltWidget/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -645,7 +641,7 @@
 				ENABLE_DEBUG_DYLIB = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				INFOPLIST_FILE = AltWidget/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -719,7 +715,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LLVM_LTO = YES_THIN;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -789,7 +785,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LLVM_LTO = YES_THIN;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -828,7 +824,7 @@
 				ENABLE_DEBUG_DYLIB = NO;
 				GCC_UNROLL_LOOPS = YES;
 				INFOPLIST_FILE = AltStore/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_EXPORT_SYMBOLS = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -877,7 +873,7 @@
 				GCC_OPTIMIZATION_LEVEL = fast;
 				GCC_UNROLL_LOOPS = YES;
 				INFOPLIST_FILE = AltStore/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_EXPORT_SYMBOLS = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -950,9 +946,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A87939D1303A89C9004D9227 /* XCLocalSwiftPackageReference "Dependencies/minimuxer" */ = {
+		A87939D1303A89C9004D9227 /* XCLocalSwiftPackageReference "Packages/TVPairCore" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = Dependencies/minimuxer;
+			relativePath = Packages/TVPairCore;
 		};
 		A8C37021302DA7A70010213A /* XCLocalSwiftPackageReference "Dependencies/SideSign" */ = {
 			isa = XCLocalSwiftPackageReference;
@@ -1012,9 +1008,9 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		A87939D2303A89CA004D9227 /* Minimuxer */ = {
+		A87939D2303A89CA004D9227 /* TVPairCore */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = Minimuxer;
+			productName = TVPairCore;
 		};
 		A8C37028302DA7F30010213A /* MarkdownKit */ = {
 			isa = XCSwiftPackageProductDependency;

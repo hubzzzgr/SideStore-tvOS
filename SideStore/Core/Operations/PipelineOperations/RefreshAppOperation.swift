@@ -28,6 +28,7 @@ final class RefreshAppOperation: BasePipelineOperation<InstallAppOperationContex
         guard let appBundle = self.context.targetAppBundle else {
             throw OperationError.invalidParameters("RefreshAppOperation: context.targetAppBundle is nil")
         }
+        for profile in profiles.values { try await AppleTVManager.shared.validateProfile(profile) }
         self.setProgress(10)
         
         if self.context.isCellularRefreshGroup {
@@ -46,13 +47,13 @@ final class RefreshAppOperation: BasePipelineOperation<InstallAppOperationContex
         }
         
         do {
-            await CellularRefreshManager.shared.turnOffDataIfNeeded()
+
             for p in profiles {
                 try await installProvisioningProfiles(p.value.data)
             }
-            await CellularRefreshManager.shared.turnOnDataIfNeeded()
+
         } catch {
-            await CellularRefreshManager.shared.turnOnDataIfNeeded()
+
             throw error
         }
         

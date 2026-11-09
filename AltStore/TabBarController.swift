@@ -7,6 +7,7 @@
 //
 
 @preconcurrency import UIKit
+import SwiftUI
 
 extension TabBarController
 {
@@ -47,6 +48,10 @@ final class TabBarController: UITabBarController
         
         let sourcesNavigationController = self.viewControllers![Tab.sources.rawValue] as! UINavigationController
         self.sourcesViewController = sourcesNavigationController.viewControllers.first as? SourcesViewController
+        let tv = UIHostingController(rootView: AppleTVSetupView())
+        tv.tabBarItem = UITabBarItem(title: "Apple TV", image: UIImage(systemName: "appletv"), tag: 0)
+        self.viewControllers?[Tab.news.rawValue] = UINavigationController(rootViewController: tv)
+        self.selectedIndex = Tab.myApps.rawValue
     }
     
     override func viewDidAppear(_ animated: Bool)

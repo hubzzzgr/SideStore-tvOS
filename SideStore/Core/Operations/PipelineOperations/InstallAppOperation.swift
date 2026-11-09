@@ -68,10 +68,10 @@ final class InstallAppOperation: BasePipelineOperation<InstallAppOperationContex
                 authTeam: authTeam
             )
             self.context.installedApp = installedApp
-            await CellularRefreshManager.shared.turnOnDataIfNeeded()
+
             return installedApp
         } catch {
-            await CellularRefreshManager.shared.turnOnDataIfNeeded()
+
             throw error
         }
     }

@@ -1,0 +1,68 @@
+name: Build Apple TV controller IPA
+on:
+  push:
+    branches: [tvos]
+  pull_request:
+    branches: [tvos]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tvos-controller-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  iphone:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Toolchain
+        run: |
+          mkdir -p artifacts
+          xcodebuild -version | tee artifacts/toolchain.txt
+          swift --version | tee -a artifacts/toolchain.txt
+      - name: Protocol tests
+        run: |
+          set -o pipefail
+          export TVPAIR_OPENSSL_CLI="$(brew --prefix openssl@3)/bin/openssl"
+          swift test --package-path Packages/TVPairCore 2>&1 | tee artifacts/protocol-tests.log
+      - name: Archive physical iPhone app without credentials
+        run: |
+          set -o pipefail
+          xcodebuild -project AltStore.xcodeproj -scheme SideStore -configuration Release \
+            -destination 'generic/platform=iOS' -sdk iphoneos -archivePath build/SideStoreTV.xcarchive \
+            -resultBundlePath artifacts/Archive.xcresult \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM= \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO archive 2>&1 | tee artifacts/archive.log
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          mkdir -p build/unsigned/Payload
+          cp -R build/SideStoreTV.xcarchive/Products/Applications/SideStore.app build/unsigned/Payload/
+          find build/unsigned/Payload -type d \( -name '*.framework' -o -name '*.appex' -o -name '*.app' \) -depth -print0 |
+            while IFS= read -r -d '' bundle; do
+              if codesign -d "$bundle" >/dev/null 2>&1; then codesign --remove-signature "$bundle"; fi
+              rm -rf "$bundle/_CodeSignature"
+              rm -f "$bundle/embedded.mobileprovision"
+            done
+          xcrun lipo -info build/unsigned/Payload/SideStore.app/SideStore | tee artifacts/architecture.txt
+          (cd build/unsigned && zip -qry ../../artifacts/SideStoreTV-unsigned.ipa Payload)
+          shasum -a 256 artifacts/SideStoreTV-unsigned.ipa > artifacts/SHA256SUMS.txt
+          echo 'Unsigned iPhone arm64 controller. Apply your own iOS signing/install process. CI does not validate installation on a physical Apple TV.' > artifacts/INSTALL.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SideStoreTV-unsigned-iphone-arm64
+          path: |
+            artifacts/SideStoreTV-unsigned.ipa
+            artifacts/SHA256SUMS.txt
+            artifacts/INSTALL.txt
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: SideStoreTV-build-diagnostics
+          path: artifacts/
+          retention-days: 14

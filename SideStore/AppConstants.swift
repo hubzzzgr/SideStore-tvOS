@@ -8,7 +8,6 @@
 
 import Foundation
 import SideSign
-import Minimuxer
 
 public enum AppConstants {
     // features required for functioning
@@ -23,17 +22,9 @@ public enum AppConstants {
         public static let legacyFileName = "\(legacyName).sqlite"
     }
 
-    public enum Proxy {
-        public static let address             = MinimuxerConstants.empServerHost
-        public static let defaultPort: UInt16 = MinimuxerConstants.empServerPort
-        public static let port                = String(defaultPort)
-        public static let serverURL           = "\(address):\(port)"
-    }
+
     
-    public enum Connection {
-        public static let defaultOverrideIP     = "10.7.0.1"
-        public static let defaultRemoteServerIP = "10.7.0.1"
-    }
+
     
     public enum Sources {
         public static let fetchTimeout: TimeInterval  = 3.0
@@ -144,21 +135,7 @@ public enum AppConstants {
         public static let sideStoreDiscord          = URL(string: "https://discord.gg/sidestore-949183273383395328")!
     }
 
-    public enum Minimuxer {
-        public static let remotePairingPort                     = MinimuxerConstants.remotePairingPort
-        public static let lockdowndPort                         = MinimuxerConstants.lockdowndPort
-        public static let defaultTCPProbeTimeoutMs              = MinimuxerConstants.defaultTCPProbeTimeoutMs
-        public static let empServerHost                         = MinimuxerConstants.empServerHost
-        public static let empServerPort                         = MinimuxerConstants.empServerPort
-        public static let defaultHostName                       = MinimuxerConstants.defaultHostName
-        public static let defaultHostModel                      = MinimuxerConstants.defaultHostModel
-        public static let remotePairingDaemonServiceType        = MinimuxerConstants.remotePairingDaemonServiceType
-        public static let remotePairingPairableHostServiceType  = MinimuxerConstants.remotePairingPairableHostServiceType
-        public static let remotePairingManualPairingServiceType = MinimuxerConstants.remotePairingManualPairingServiceType
-        public static let defaultRPPairingFileName              = MinimuxerConstants.defaultRPPairingFileName
-        public static let rpPairingFileSuffix                   = MinimuxerConstants.rpPairingFileSuffix
-        public static let vpnHandshakeTimeoutNs                 = MinimuxerConstants.vpnHandshakeTimeoutNs
-    }
+
 
     public enum Pairing {
         public static let fileExtension             = "plist"

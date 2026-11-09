@@ -127,11 +127,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // Register default settings before doing anything else.
         UserDefaults.registerDefaults()
         BackgroundServiceManager.ensureBackgroundServicesStarted()
-        syncMinimuxerBackendFromUserDefaults()
 
         SideStoreLogging.setLogging(UserDefaults.standard.isSideStoreVerboseLoggingEnabled)
         AltSign.setLogging(UserDefaults.standard.isAltSignVerboseLoggingEnabled)
-        minimuxerSetLogging(UserDefaults.standard.isMinimuxerVerboseLoggingEnabled)
         SideSignConfigManager.shared.applyConfigToDeveloperPortal()
 
         // Override point for customization after application launch.

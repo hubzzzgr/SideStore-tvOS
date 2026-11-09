@@ -45,6 +45,7 @@ final class VerifyAppOperation: BasePipelineOperation<InstallAppOperationContext
             throw OperationError.invalidParameters("VerifyAppOperation: context.appBundle is nil")
         }
         
+        try await AppleTVManager.shared.validate(appBundle)
         guard !UserDefaults.standard.appVerificationDisabled else {
             debugLog("[VerifyAppOperation] App verification was disabled for \(appBundle.bundleIdentifier), skipping all verification.")
             self.setProgress(100)
@@ -64,15 +65,8 @@ final class VerifyAppOperation: BasePipelineOperation<InstallAppOperationContext
             debugLog("[VerifyAppOperation] Bundle ID verification disabled, skipping check.")
         }
         
-        // 2. iOS Version Compatibility Check
-        if UserDefaults.standard.isiOSVersionVerificationEnabled {
-            guard ProcessInfo.processInfo.isOperatingSystemAtLeast(appBundle.minimumiOSVersion) else {
-                throw VerificationError.iOSVersionNotSupported(app: appBundle, requiredOSVersion: appBundle.minimumiOSVersion)
-            }
-        } else {
-            debugLog("[VerifyAppOperation] iOS version verification disabled, skipping check.")
-        }
-        
+        // Version and platform were checked against the remote TV above.
+
         guard let appVersion = context.appVersion else {
             self.setProgress(100)
             return false

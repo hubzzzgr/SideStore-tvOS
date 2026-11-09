@@ -12,17 +12,7 @@ import SideSign
 public class DeveloperPortalProxy {
     public static let shared: DeveloperPortalProxy = DeveloperPortalProxyWithAuth()
     
-    public static var currentDeviceType: ALTDeviceType {
-        #if os(tvOS)
-        return .tv
-        #elseif os(visionOS)
-        return .vision
-        #elseif os(watchOS)
-        return .watch
-        #else
-        return UIDevice.current.userInterfaceIdiom == .pad ? .ipad : .iphone
-        #endif
-    }
+    public static var currentDeviceType: ALTDeviceType { .appleTV }
     
     fileprivate init() {}
     

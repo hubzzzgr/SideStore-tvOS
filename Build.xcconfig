@@ -27,3 +27,8 @@ DEBUG_ACTIVITY_MODE = disable
 
 // Mute warnings about duplicate classes in AuthKit and AuthUIKit
 DEBUG_DUPLICATE_CLASSES = NO
+
+// Apple TV controller fork: separate container, local anisette, no helper apps.
+ORG_IDENTIFIER = io.github.hubzzzgr
+BASE_BUNDLE_ID = $(ORG_IDENTIFIER).SideStoreTV
+IPHONEOS_DEPLOYMENT_TARGET = 17.0

@@ -7,8 +7,6 @@
 //
 
 import Foundation
-import Minimuxer
-import MinimuxerCommon
 
 public extension UserDefaults
 {
@@ -123,7 +121,7 @@ public extension UserDefaults
         set { self.set(newValue, forKey: #function) }
     }
     @objc var minimuxerGatewayBackend: String {
-        get { self.string(forKey: #function) ?? GatewayBackend.idevice.rawValue }
+        get { self.string(forKey: #function) ?? "appleTV" }
         set { self.set(newValue, forKey: #function) }
     }
     @objc var remotePairingPortOverride: Int {
@@ -266,10 +264,7 @@ public extension UserDefaults
         get { self.bool(forKey: "autoFixAppGroupIDs") }
         set { self.set(newValue, forKey: "autoFixAppGroupIDs") }
     }
-    @objc var preferResignedIPA: Bool {
-        get { self.bool(forKey: #function) }
-        set { self.set(newValue, forKey: #function) }
-    }
+    @objc var preferResignedIPA: Bool { get { true } set {} }
     @objc var isExportResignedAppEnabled: Bool {
         get { self.bool(forKey: #function) }
         set { self.set(newValue, forKey: #function) }
@@ -307,23 +302,6 @@ public extension UserDefaults
         pairingFileEditSuppressedSHAs = map
     }
 
-    var activePairingProtocol: PairingProtocol? {
-        get { _activePairingProtocol.flatMap { PairingProtocol(rawValue: $0) } }
-        set { _activePairingProtocol = newValue?.rawValue }
-    }
-    @objc(activePairingProtocol) private var _activePairingProtocol: String? {
-        get { self.string(forKey: "activePairingProtocol") }
-        set { self.set(newValue, forKey: "activePairingProtocol") }
-    }
-
-    var preferredPairingProtocol: PairingProtocol? {
-        get { _preferredPairingProtocol.flatMap { PairingProtocol(rawValue: $0) } }
-        set { _preferredPairingProtocol = newValue?.rawValue }
-    }
-    @objc(preferredPairingProtocol) private var _preferredPairingProtocol: String? {
-        get { self.string(forKey: "preferredPairingProtocol") }
-        set { self.set(newValue, forKey: "preferredPairingProtocol") }
-    }
     @objc var keepSigningCertsAfterLogout: Bool {
         get { self.bool(forKey: #function) }
         set { self.set(newValue, forKey: #function) }
@@ -531,7 +509,7 @@ public extension UserDefaults
             #keyPath(UserDefaults._preferredAppSorting): preferredAppSorting.rawValue,
 
             // sidestore actively used
-            #keyPath(UserDefaults.minimuxerGatewayBackend): GatewayBackend.idevice.rawValue,
+            #keyPath(UserDefaults.minimuxerGatewayBackend): "appleTV",
             #keyPath(UserDefaults.keepSigningCertsAfterLogout): true,
             #keyPath(UserDefaults.keepAnisetteDataAfterLogout): true,
             #keyPath(UserDefaults.keepAnisetteHeadersAfterLogout): true,

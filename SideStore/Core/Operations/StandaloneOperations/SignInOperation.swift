@@ -227,7 +227,7 @@ final class SignInOperation: BaseStandaloneOperation<StandaloneOperationContext,
                 self.verboseLog("[SignInOperation] finalizeAuthentication: Authentication Success for team \(team.identifier) account.")
                 
                 var didResign = false
-                if !self.skipResign,
+                if false, // The iPhone controller is never reinstalled on the TV.
                    let signingCertificate = certificate,
                    !self.skipCertificateProvisioning,
                    UserDefaults.standard.isDeviceRegistered

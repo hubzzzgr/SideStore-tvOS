@@ -143,7 +143,10 @@ final class PipelineRunner: Sendable
             }
         }
         
-        /* Minimuxer Readiness Check */
+        try await AppleTVManager.shared.beginOperations()
+        defer { Task { @MainActor in AppleTVManager.shared.endOperations() } }
+
+        /* Remote Apple TV readiness check */
         do {
             try await ensureMinimuxerReady()
         } catch let opError as OperationError {
@@ -196,18 +199,15 @@ final class PipelineRunner: Sendable
         
         
         let operationsCount = operations.count
-        let isCellularRefreshGroup = (operationsCount >= 2 && CellularRefreshManager.shared.isCellularMode)
+        let isCellularRefreshGroup = (operationsCount >= 2 && false)
         group.isCellularRefreshGroup = isCellularRefreshGroup
-        debugLog("[PipelineRunner] Configured pipeline for \(operationsCount) operation(s): isCellularRefreshGroup = \(isCellularRefreshGroup) (isCellularMode = \(CellularRefreshManager.shared.isCellularMode))")
+        debugLog("[PipelineRunner] Configured pipeline for \(operationsCount) operation(s): isCellularRefreshGroup = \(isCellularRefreshGroup) (isCellularMode = \(false))")
 
         // run the operation pipeline
-        try await withThrowingTaskGroup(of: Void.self) { taskGroup in
-            for operation in operations {
-                taskGroup.addTask {
-                    try await self.performOperation(for: operation, handler: handler, group: group, operationsCount: operationsCount)
-                }
-            }
-            while let _ = try await taskGroup.next() {}
+        // The POC routes tunnel reads cooperatively; serialize remote mutations.
+        for operation in operations {
+            try Task.checkCancellation()
+            try await self.performOperation(for: operation, handler: handler, group: group, operationsCount: operationsCount)
         }
 
         // Run standalone batch profile injection if cellular refresh group with at least 2 operations
@@ -281,9 +281,9 @@ final class PipelineRunner: Sendable
                 )
                 try await scheduleNotifOp.execute()
             }
-            await CellularRefreshManager.shared.turnOnDataIfNeeded()
+
         } catch {
-            await CellularRefreshManager.shared.turnOnDataIfNeeded()
+
             progress.set(nil, for: operation)
             
             let elapsed = CFAbsoluteTimeGetCurrent() - group.operationStartTime

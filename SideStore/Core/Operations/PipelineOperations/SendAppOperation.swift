@@ -32,19 +32,18 @@ final class SendAppOperation: BasePipelineOperation<InstallAppOperationContext, 
         verboseLog("[SendAppOperation] AFC App Bundle `fileURL`: \(appURL.absoluteString)")
 
         do {
-            await CellularRefreshManager.shared.turnOffDataIfNeeded()
+
             
             if UserDefaults.standard.preferResignedIPA, let ipaURL = self.context.ipaURL {
                 debugLog("[SendAppOperation] Sending IPA at \(ipaURL.path) via AFC...")
-                let rawBytes = try Data(contentsOf: ipaURL, options: .mappedIfSafe)
-                try await sendIpaAfc(bundleIdentifier, rawBytes)
+                try await AppleTVManager.shared.stage(bundleID: bundleIdentifier, url: ipaURL)
             } else {
                 debugLog("[SendAppOperation] Sending App Bundle at \(appURL.path) via AFC...")
                 try await sendAppBundleAfc(bundleIdentifier, at: appURL)
             }
             self.setProgress(100)
         } catch {
-            await CellularRefreshManager.shared.turnOnDataIfNeeded()
+
 
             debugLog("[SendAppOperation] Failed to send app at \(self.context.ipaURL?.path ?? appURL.path): \(error)")
             throw error

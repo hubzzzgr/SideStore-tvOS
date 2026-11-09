@@ -9,7 +9,6 @@
 import Foundation
 import Network
 import Combine
-import Minimuxer
 
 struct ServiceTypeInfo: Identifiable, Hashable {
     var id: String { rawType }
@@ -695,23 +694,23 @@ final class BonjourDiscoveryManager: NSObject, ObservableObject, NetServiceDeleg
     }
     
     static func localInterfaceAddresses(matchingInterfaces: [NWInterface]? = nil) -> [String] {
-        let targetNames: Set<String>? = matchingInterfaces.map { Set($0.map { $0.name.lowercased() }) }
-        let interfaces = Minimuxer.shared.network.activeInterfaces
-        
-        var addresses: [String] = []
-        for iface in interfaces {
-            let lowerName = iface.name.lowercased()
-            let shouldInclude = targetNames?.contains(lowerName) ?? (lowerName.hasPrefix("en") || lowerName.hasPrefix("lo"))
-            guard shouldInclude else { continue }
-            
-            if !iface.ip.isEmpty && !addresses.contains(iface.ip) {
-                addresses.append(iface.ip)
-            }
-            if let v6 = iface.ipv6, !v6.isEmpty && !addresses.contains(v6) {
-                addresses.append(v6)
+        var head: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&head) == 0 else { return [] }
+        defer { freeifaddrs(head) }
+        var values: [String] = []
+        var item = head
+        while let current = item {
+            defer { item = current.pointee.ifa_next }
+            guard let address = current.pointee.ifa_addr else { continue }
+            let name = String(cString: current.pointee.ifa_name)
+            if let matchingInterfaces, !matchingInterfaces.contains(where: { $0.name == name }) { continue }
+            guard address.pointee.sa_family == AF_INET || address.pointee.sa_family == AF_INET6 else { continue }
+            var buffer = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            if getnameinfo(address, socklen_t(address.pointee.sa_len), &buffer, socklen_t(buffer.count), nil, 0, NI_NUMERICHOST) == 0 {
+                values.append(String(cString: buffer))
             }
         }
-        return addresses
+        return values
     }
     
     private final class OneShotResolver: @unchecked Sendable {

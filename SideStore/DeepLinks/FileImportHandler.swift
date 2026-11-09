@@ -7,7 +7,6 @@
 //
 
 import UIKit
-import MinimuxerCommon
 
 @MainActor
 public final class FileImportHandler {
@@ -45,8 +44,6 @@ public final class FileImportHandler {
         let ext = fileURL.pathExtension.lowercased()
         if ext == "ipa" {
             return handleIPAImport(fileURL: fileURL)
-        } else if AppConstants.Pairing.supportedExtensions.contains(ext) {
-            return handlePairingFileImport(fileURL: fileURL)
         }
 
         debugLog("[FileImportHandler] Unsupported file extension: \(ext)")
@@ -82,22 +79,5 @@ public final class FileImportHandler {
         return true
     }
 
-    private func handlePairingFileImport(fileURL: URL) -> Bool {
-        do {
-            try PairingFileManager.shared.importPairingFile(from: fileURL)
-            debugLog("[FileImportHandler] Successfully saved imported pairing file")
-            if let topVC = UIApplication.shared.topViewController() {
-                let toast = ToastView(text: NSLocalizedString("Pairing File Imported Successfully!", comment: ""), detailText: nil)
-                toast.show(in: topVC)
-            }
-            return true
-        } catch {
-            debugLog("[FileImportHandler] Failed to save imported pairing file: \(error)")
-            if let topVC = UIApplication.shared.topViewController() {
-                let toast = ToastView(text: NSLocalizedString("Failed to save Pairing File", comment: ""), detailText: nil)
-                toast.show(in: topVC)
-            }
-            return false
-        }
-    }
 }
+

@@ -2308,6 +2308,7 @@ extension MyAppsViewController
             #endif
         }
         
+        actions = [refreshAction, resignAction, reinstallMenu, profileMenu, infoAction, deleteAppAction, removeAction]
         actions.append(infoAction)
         
         // Change the order of entries to make changes to how the context menu is displayed

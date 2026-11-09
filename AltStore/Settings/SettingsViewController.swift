@@ -88,19 +88,7 @@ extension SettingsViewController
         case userCustomizations     // row 11 - User Customizations
 
         static var allCases: [AdvancedSettingsRow] {
-            var rows: [AdvancedSettingsRow] = [.sendFeedback, .refreshAttempts, .refreshSideJITServer, .pairingFileManagement]
-            if !UserDefaults.standard.useOnDeviceAnisette {
-                rows.append(.anisetteServers)
-            }
-            rows.append(contentsOf: [
-                .connectionConfig,
-                .networkDiscovery,
-                .developerServices,
-                .profileManagement,
-                .certificateManagement,
-                .backupAndRestore,
-                .userCustomizations
-            ])
+            let rows: [AdvancedSettingsRow] = [.pairingFileManagement, .developerServices, .profileManagement, .certificateManagement]
             return rows
         }
     }
@@ -615,6 +603,7 @@ private extension SettingsViewController
     
     private func isSectionHidden(_ section: Section) -> Bool
     {
+        if [.appRefresh, .instructions, .betaTesting, .diagnostics].contains(section) { return true }
         switch section
         {
         // case .macDirtyCow:
@@ -716,7 +705,7 @@ private extension SettingsViewController
     @IBAction func toggleMinimuxerVerboseLogging(_ sender: UISwitch) {
         // update it in database
         UserDefaults.standard.isMinimuxerVerboseLoggingEnabled = sender.isOn
-        minimuxerSetLogging(sender.isOn)
+
     }
 
     @IBAction func toggleRotateLogsOnStartup(_ sender: UISwitch) {
@@ -1161,7 +1150,7 @@ extension SettingsViewController
             switch row
             {
             case .healthCheck:
-                let healthCheckView = HealthCheckView()
+                let healthCheckView = AppleTVSetupView()
                 let vc = UIHostingController(rootView: healthCheckView)
                 
                 #if !os(tvOS)
@@ -1281,7 +1270,7 @@ extension SettingsViewController
                 self.tableView.deselectRow(at: indexPath, animated: true)
                 
             case .pairingFileManagement:
-                let pairingView = PairingFileManagementView()
+                let pairingView = AppleTVSetupView()
                 let vc = UIHostingController(rootView: pairingView)
                 #if !os(tvOS)
                 let appearance = UINavigationBarAppearance()
@@ -1306,7 +1295,7 @@ extension SettingsViewController
                 self.prepare(for: UIStoryboardSegue(identifier: "anisetteServers", source: self, destination: vc), sender: nil)
 
             case .connectionConfig:
-                let connectionConfigView = ConnectionConfigView()
+                let connectionConfigView = AppleTVSetupView()
                 let vc = UIHostingController(rootView: connectionConfigView)
 
                 #if !os(tvOS)
@@ -1348,7 +1337,7 @@ extension SettingsViewController
                 self.prepare(for: UIStoryboardSegue(identifier: "diagnostics", source: self, destination: vc), sender: nil)
                 
             case .userCustomizations:
-                let userCustomizationsView = UserCustomizationsView()
+                let userCustomizationsView = AppleTVSetupView()
                 let vc = UIHostingController(rootView: userCustomizationsView)
                 vc.view.backgroundColor = .settingsBackground
                 vc.title = NSLocalizedString("User Customizations", comment: "")
@@ -1361,7 +1350,7 @@ extension SettingsViewController
             let row = DiagnosticsRow.allCases[indexPath.row]
             switch row {
             case .developerOptions:
-                let developerOptionsView = DeveloperOptionsView()
+                let developerOptionsView = AppleTVSetupView()
                 let hostingController = UIHostingController(rootView: developerOptionsView)
                 hostingController.view.backgroundColor = .settingsBackground
                 hostingController.title = NSLocalizedString("Developer Options", comment: "")
