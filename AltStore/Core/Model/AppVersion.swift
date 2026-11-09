@@ -218,15 +218,12 @@ public extension AppVersion
     
     
     var isSupported: Bool {
-        if let minOSVersion = self.minOSVersion, !ProcessInfo.processInfo.isOperatingSystemAtLeast(minOSVersion)
-        {
-            return false
-        }
-        else if let maxOSVersion = self.maxOSVersion, ProcessInfo.processInfo.operatingSystemVersion > maxOSVersion
-        {
-            return false
-        }
-
+        guard let text = UserDefaults.standard.string(forKey: "AppleTV.osVersion") else { return true }
+        let parts = text.split(separator: ".").compactMap { Int($0) }
+        guard let major = parts.first else { return true }
+        let version = OperatingSystemVersion(majorVersion: major, minorVersion: parts.count > 1 ? parts[1] : 0, patchVersion: parts.count > 2 ? parts[2] : 0)
+        if let minOSVersion, version < minOSVersion { return false }
+        if let maxOSVersion, version > maxOSVersion { return false }
         return true
     }
 }

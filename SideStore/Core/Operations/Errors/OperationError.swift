@@ -27,8 +27,6 @@ public enum OperationError: LocalizedError, CustomNSError, Sendable, Equatable {
     case invalidPairingFile(reason: String)
     case invalidParameters(String)
     case invalidResponse(reason: String)
-    case invalidVPN(reason: String)
-    case minimuxerNotStarted(reason: String)
     case missingAppBundle(reason: String)
     case missingAppGroup(name: String)
     case missingInfoPlist(reason: String)
@@ -36,7 +34,6 @@ public enum OperationError: LocalizedError, CustomNSError, Sendable, Equatable {
     case missingUpdate(appName: String)
     case noConnection(reason: String)
     case noDevice(reason: String)
-    case noVPN(reason: String)
     case notReachable(reason: String)
     case openAppFailed(name: String)
     case pairingNotComplete(reason: String)
@@ -83,10 +80,6 @@ public enum OperationError: LocalizedError, CustomNSError, Sendable, Equatable {
             return "Invalid parameters: \n\(msg)"
         case .invalidResponse(let reason):
             return "Invalid server response: \(reason)"
-        case .invalidVPN(let reason):
-            return "VPN Connection Error:\n\(reason)\n\nPlease make sure LocalDevVPN is connected and running properly."
-        case .minimuxerNotStarted(let reason):
-            return "Minimuxer has not been started yet: \(reason)\n\nPlease complete pairing or start minimuxer before performing operations."
         case .missingAppBundle(let reason):
             return "The app bundle could not be found: \(reason)"
         case .missingAppGroup(let name):
@@ -100,21 +93,19 @@ public enum OperationError: LocalizedError, CustomNSError, Sendable, Equatable {
         case .noConnection(let reason):
             return "Network Connection Error:\n\(reason)\n\nPlease connect to Wi-Fi before attempting further operations."
         case .noDevice(let reason):
-            return "SideStore is unable to reach the device endpoint:\n\(reason)\n\nPlease check your Connection Configuration in Settings."
-        case .noVPN(let reason):
-            return "VPN Connection Error:\n\(reason)\n\nPlease make sure LocalDevVPN is connected and running properly."
+            return "SideStore is unable to reach the device endpoint:\n\(reason)\n\nReconnect to the Apple TV in Settings."
         case .notReachable(let reason):
             return reason.isEmpty ? "Device is not reachable at the specified IP or Endpoint." : reason
         case .openAppFailed(let name):
             return "SideStore was denied permission to launch \(name)."
         case .pairingNotComplete(let reason):
-            return "Pairing Required: \(reason)\n\nWithout a valid pairing file, SideStore operations cannot connect to your device. Please pair your device or import a valid pairing file."
+            return "Pairing Required: \(reason)\n\nPair and select an Apple TV in Settings."
         case .pledgeInactive(let appName):
             return "Your pledge is no longer active. Please renew it to continue using \(appName) normally."
         case .SideJITIssue(let error):
             return "An error occurred while using SideJIT: \(error)"
         case .unknownUDID(let reason):
-            return "SideStore could not determine this device's UDID: \(reason)\n\nPlease replace your pairing using iloader or idevice_pair."
+            return "SideStore could not determine this device's UDID: \(reason)\n\nReconnect or pair the Apple TV in Settings."
         }
     }
 
@@ -130,8 +121,6 @@ public enum OperationError: LocalizedError, CustomNSError, Sendable, Equatable {
         switch self {
         case .invalidPairingFile:
             return NSLocalizedString("Import a valid mobiledevicepairing file.", comment: "")
-        case .invalidVPN, .noVPN:
-            return NSLocalizedString("Make sure LocalDevVPN is connected and running!", comment: "")
         case .noConnection:
             return NSLocalizedString("Connect to a Wi-Fi network, Bridge or a Wired network connection!", comment: "")
         default:

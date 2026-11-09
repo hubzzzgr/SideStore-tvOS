@@ -77,7 +77,7 @@ final class DownloadAppOperation: BasePipelineOperation<InstallAppOperationConte
             }
 
             if let appVersion {
-                try self.verify(appVersion)
+                try await self.verify(appVersion)
                 
                 // set release Track for install/update
                 if let track = appVersion.releaseTrack {
@@ -119,12 +119,9 @@ final class DownloadAppOperation: BasePipelineOperation<InstallAppOperationConte
         }
     }
 
-    private func verify(_ version: AppVersion) throws {
-        if let minOSVersion = version.minOSVersion, !ProcessInfo.processInfo.isOperatingSystemAtLeast(minOSVersion) {
-            throw VerificationError.iOSVersionNotSupported(app: version, requiredOSVersion: minOSVersion)
-        } else if let maxOSVersion = version.maxOSVersion, ProcessInfo.processInfo.operatingSystemVersion > maxOSVersion {
-            throw VerificationError.iOSVersionNotSupported(app: version, requiredOSVersion: maxOSVersion)
-        }
+    private func verify(_ version: AppVersion) async throws {
+        _ = try await AppleTVManager.shared.ready()
+        guard version.isSupported else { throw OperationError.invalidApp(reason: "This source version does not support the selected TV's tvOS version.") }
     }
     
     private func download(@Managed _ app: AppProtocol) async throws -> ALTApplication {

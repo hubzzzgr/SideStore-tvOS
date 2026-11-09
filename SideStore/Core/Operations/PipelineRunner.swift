@@ -144,11 +144,11 @@ final class PipelineRunner: Sendable
         }
         
         try await AppleTVManager.shared.beginOperations()
-        defer { Task { @MainActor in AppleTVManager.shared.endOperations() } }
+        defer { Task { @MainActor in await AppleTVManager.shared.endOperations() } }
 
         /* Remote Apple TV readiness check */
         do {
-            try await ensureMinimuxerReady()
+            try await ensureAppleTVReady()
         } catch let opError as OperationError {
             group.error = opError
             for operation in operations {

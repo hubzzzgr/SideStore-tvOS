@@ -4,12 +4,12 @@ import TVPairCore
 
 // Compatibility entry points keep SideStore's signing and operation pipeline.
 // Every device action is routed to the selected, authenticated Apple TV.
-public func ensureMinimuxerReady() async throws { _ = try await AppleTVManager.shared.ready() }
-public func isMinimuxerReady() async -> Result<Bool, Error> {
-    do { try await ensureMinimuxerReady(); return .success(true) }
+public func ensureAppleTVReady() async throws { _ = try await AppleTVManager.shared.ready() }
+public func isAppleTVReady() async -> Result<Bool, Error> {
+    do { try await ensureAppleTVReady(); return .success(true) }
     catch { return .failure(error) }
 }
-@MainActor var minimuxerStatusPublisher: AnyPublisher<Result<Bool, Error>, Never> {
+@MainActor var appleTVStatusPublisher: AnyPublisher<Result<Bool, Error>, Never> {
     AppleTVManager.shared.readiness.eraseToAnyPublisher()
 }
 func fetchUDID(forceLive: Bool = false) async throws -> String {

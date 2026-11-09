@@ -99,7 +99,7 @@
         <string>_companion-link._tcp</string>
     </array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>SideStore can use local network access to discover Bonjour (mDNS) services on your network. This is not required for core functionality.</string>
+	<string>SideStore TV uses your local network to discover, pair with, and install apps on your Apple TV.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>RefreshAllIntent</string>

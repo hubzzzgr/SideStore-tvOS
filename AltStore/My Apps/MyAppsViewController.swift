@@ -143,12 +143,12 @@ class MyAppsViewController: UICollectionViewController
         
         if minimuxerStatusCheckTask == nil {
             minimuxerStatusCheckTask = Task {
-                let status = await isMinimuxerReady()
-                updateStatusDot(isReady: status.isSuccess)
+                let status = await isAppleTVReady()
+                updateStatusDot(isReady: (try? status.get()) == true)
                 // Listen to subsequent updates reactively
-                for await result in minimuxerStatusPublisher.values {
+                for await result in appleTVStatusPublisher.values {
                     guard !Task.isCancelled else { break }
-                    updateStatusDot(isReady: result.isSuccess)
+                    updateStatusDot(isReady: (try? result.get()) == true)
                 }
             }
         }
@@ -1134,11 +1134,7 @@ private extension MyAppsViewController
 {
     func open(_ installedApp: InstalledApp)
     {
-        UIApplication.shared.open(installedApp.openAppURL) { success in
-            guard !success else { return }
-            
-            ToastView(error: OperationError.openAppFailed(name: installedApp.name), opensLog: true).show(in: self)
-        }
+        ToastView(text: "Open this app on Apple TV using its remote.", detailText: nil).show(in: self)
     }
     
     func refresh(_ installedApp: InstalledApp)
@@ -2106,7 +2102,7 @@ extension MyAppsViewController
             self.deleteApp(installedApp)
         }
         
-        let removeAction = UIAction(title: NSLocalizedString("Remove", comment: ""), image: UIImage(systemName: "trash"), attributes: .destructive) { (action) in
+        let removeAction = UIAction(title: NSLocalizedString("Remove from Library", comment: ""), image: UIImage(systemName: "trash"), attributes: .destructive) { (action) in
             self.remove(installedApp)
         }
         

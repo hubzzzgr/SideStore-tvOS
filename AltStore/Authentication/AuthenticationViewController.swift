@@ -33,7 +33,7 @@ final class AuthenticationViewController: UIViewController
         
         // fetch anisette servers asap when loading Auth Screen (if list is empty)
         Task {
-            if await AnisetteServersManager.shared.getActiveServerURLs().isEmpty {
+            if !UserDefaults.standard.useOnDeviceAnisette, await AnisetteServersManager.shared.getActiveServerURLs().isEmpty {
                 let sourceURL = UserDefaults.standard.menuAnisetteList
                 do {
                     _ = try await AnisetteServersManager.shared.syncWithRemote(sourceURLString: sourceURL, forceRemote: true)

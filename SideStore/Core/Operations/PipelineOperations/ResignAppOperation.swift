@@ -33,6 +33,7 @@ final class ResignAppOperation: BasePipelineOperation<InstallAppOperationContext
                                                    "self.context.targetSigningCertificate is nil")
         }
         
+        try await AppleTVManager.shared.validate(appBundle)
         for profile in profiles.values { try await AppleTVManager.shared.validateProfile(profile) }
         debugLog("[ResignAppOperation] Resigning app \(self.context.bundleIdentifier)...")
         

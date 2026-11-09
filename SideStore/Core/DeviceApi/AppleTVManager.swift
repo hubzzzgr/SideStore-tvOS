@@ -21,6 +21,7 @@ final class AppleTVManager: ObservableObject {
     private var developer: DeveloperConnection?
     private var transport: (any ByteTransport)?
     private var pinContinuation: CheckedContinuation<String, Error>?
+    private var pinRequestID: UUID?
     private var operation: Task<Void, Never>?
     private var connecting: Task<DeveloperConnection, Error>?
     private var leases = 0
@@ -39,6 +40,7 @@ final class AppleTVManager: ObservableObject {
             throw OperationError.invalidParameters("This library belongs to another Apple TV. Remove its tracked apps before switching the managed TV.")
         }
         developer?.cancel(); developer = nil; information = nil; readyAt = .distantPast
+        UserDefaults.standard.removeObject(forKey: "AppleTV.osVersion")
         selectedID = id
         UserDefaults.standard.set(id.uuidString, forKey: "AppleTV.selected")
         UserDefaults.standard.isDeviceRegistered = false
@@ -94,16 +96,18 @@ final class AppleTVManager: ObservableObject {
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
+                let requestID = UUID(); pinRequestID = requestID
                 pinContinuation = continuation
                 Task { [weak self] in
                     try? await Task.sleep(for: .seconds(90))
+                    guard self?.pinRequestID == requestID else { return }
                     self?.finishPIN(.failure(TVPairError.timeout))
                 }
             }
         } onCancel: { [weak self] in Task { @MainActor in self?.finishPIN(.failure(CancellationError())) } }
     }
     private func finishPIN(_ result: Result<String, Error>) {
-        let continuation = pinContinuation; pinContinuation = nil
+        let continuation = pinContinuation; pinContinuation = nil; pinRequestID = nil
         continuation?.resume(with: result)
     }
     func submitPIN() {
@@ -152,6 +156,7 @@ final class AppleTVManager: ObservableObject {
                     connection.cancel(); throw TVInstallationError.missingService("a responding developer service")
                 }
                 information = info
+                UserDefaults.standard.set(info.osVersion, forKey: "AppleTV.osVersion")
                 try await connection.verifyInstallationServices()
                 developer = connection; readyAt = Date()
                 status = "Developer access and installation services verified."
@@ -165,12 +170,19 @@ final class AppleTVManager: ObservableObject {
         catch { readiness.send(.failure(error)); status = error.localizedDescription; throw error }
     }
     func beginOperations() async throws {
-        guard leases == 0 else { throw TVInstallationError.busy }
+        guard leases == 0, !busy else { throw TVInstallationError.busy }
         leases = 1
         do { _ = try await ready(force: true) }
         catch { leases = 0; throw error }
     }
-    func endOperations() { leases = 0 }
+    func endOperations() async {
+        if let developer {
+            for path in staged.values { try? await developer.removeStagedIPA(path) }
+            developer.cancel()
+        }
+        staged.removeAll(); developer = nil; readyAt = .distantPast; leases = 0
+        readiness.send(.success(false))
+    }
     func deviceUDID() async throws -> String {
         _ = try await ready()
         guard let value = information?.identifier else { throw OperationError.unknownUDID(reason: "Apple TV did not return its UDID.") }
@@ -182,8 +194,10 @@ final class AppleTVManager: ObservableObject {
         guard app.supportedDeviceTypes.contains(.appleTV), platforms == ["AppleTVOS"] else {
             throw OperationError.invalidApp(reason: "Choose a physical-device tvOS IPA (AppleTVOS, device family 3). iPhone and simulator apps cannot run on Apple TV.")
         }
+        try validateExecutable(app)
         guard let os = information?.osVersion else { throw OperationError.invalidParameters("tvOS version is unavailable.") }
         let parts = os.split(separator: ".").map { Int($0) ?? 0 }
+        guard !parts.isEmpty else { throw OperationError.invalidParameters("Invalid tvOS version.") }
         let actual = OperatingSystemVersion(majorVersion: parts[0], minorVersion: parts.count > 1 ? parts[1] : 0, patchVersion: parts.count > 2 ? parts[2] : 0)
         let required = app.minimumiOSVersion
         let actualNumber = actual.majorVersion * 1_000_000 + actual.minorVersion * 1000 + actual.patchVersion
@@ -192,7 +206,15 @@ final class AppleTVManager: ObservableObject {
         for ext in app.appExtensions {
             let platforms = ext.infoPlist["CFBundleSupportedPlatforms"] as? [String] ?? []
             guard platforms == ["AppleTVOS"] else { throw OperationError.invalidApp(reason: "The IPA contains a non-tvOS extension.") }
+            try validateExecutable(ext)
         }
+    }
+    private func validateExecutable(_ app: ALTApplication) throws {
+        guard let name = app.infoPlist["CFBundleExecutable"] as? String, !name.isEmpty,
+              !name.contains("/"), !name.contains("\\"), name != ".", name != ".." else {
+            throw OperationError.invalidApp(reason: "The IPA executable name is invalid.")
+        }
+        try TVOSExecutable.validate(url: app.fileURL.appendingPathComponent(name))
     }
     func validateProfile(_ profile: ALTProvisioningProfile) async throws {
         let udid = try await deviceUDID()
@@ -225,7 +247,9 @@ final class AppleTVManager: ObservableObject {
         }
     }
     func inventory() async throws {
-        guard leases == 0 else { throw TVInstallationError.busy }
+        guard leases == 0, !busy else { throw TVInstallationError.busy }
+        leases = 1
+        defer { leases = 0 }
         installedApps = try await ready(force: true).lookupApps()
     }
 }

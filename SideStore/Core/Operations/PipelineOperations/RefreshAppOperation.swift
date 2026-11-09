@@ -28,6 +28,7 @@ final class RefreshAppOperation: BasePipelineOperation<InstallAppOperationContex
         guard let appBundle = self.context.targetAppBundle else {
             throw OperationError.invalidParameters("RefreshAppOperation: context.targetAppBundle is nil")
         }
+        try await AppleTVManager.shared.validate(appBundle)
         for profile in profiles.values { try await AppleTVManager.shared.validateProfile(profile) }
         self.setProgress(10)
         
@@ -75,7 +76,8 @@ final class RefreshAppOperation: BasePipelineOperation<InstallAppOperationContex
               let installedApp = dbContext.object(with: mainApp.objectID) as? InstalledApp else {
             throw OperationError.invalidParameters("Could not find installed database record for '\(appBundle.name)'")
         }
-        installedApp.update(provisioningProfile: profiles.values.first!)
+        guard let mainProfile = profiles[self.context.targetBundleIdentifier] ?? profiles.values.first else { throw OperationError.invalidParameters("Missing main tvOS profile.") }
+        installedApp.update(provisioningProfile: mainProfile)
         
         if let certStatus = self.context.targetCertStatus {
             installedApp.certificateStatus = certStatus

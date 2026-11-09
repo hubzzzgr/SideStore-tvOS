@@ -29,6 +29,9 @@ final class RemoveAppOperation: BasePipelineOperation<InstallAppOperationContext
             let installedAppInContext = backgroundContext.object(with: installedApp.objectID) as! InstalledApp
             CacheResignedMetadataOperation.clearCustomizations(for: installedAppInContext)
             backgroundContext.delete(installedAppInContext)
+            if InstalledApp.all(in: backgroundContext).filter({ !$0.isDeleted && $0.bundleIdentifier != StoreApp.altstoreAppID }).isEmpty {
+                UserDefaults.standard.removeObject(forKey: "AppleTV.managedTarget")
+            }
         }
         
         self.setProgress(100)

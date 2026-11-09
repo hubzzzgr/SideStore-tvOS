@@ -331,10 +331,7 @@ public extension UserDefaults
         get { self.bool(forKey: #function) }
         set { self.set(newValue, forKey: #function) }
     }
-    @objc var useOnDeviceAnisette: Bool {
-        get { self.bool(forKey: #function) }
-        set { self.set(newValue, forKey: #function) }
-    }
+    @objc var useOnDeviceAnisette: Bool { get { true } set {} }
 
     @objc var recreateDatabaseOnNextStart: Bool {
         get { self.bool(forKey: #function) }

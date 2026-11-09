@@ -177,7 +177,7 @@ final class BackgroundRefreshAppsOperation: BaseStandaloneOperation<OperationCon
                 content.body = NSLocalizedString("All apps have been refreshed.", comment: "")
             } catch let opError as OperationError {
                 switch opError {
-                case .noConnection, .noVPN, .noInstalledApps:
+                case .noConnection, .noInstalledApps:
                     shouldPresentAlert = false
                 default:
                     self.debugLog("Failed to refresh apps in background: \(opError)")

@@ -609,17 +609,8 @@ public extension StoreApp
     
     func preferredScreenshots() -> [AppScreenshot]
     {
-        let deviceType: ALTDeviceType
-        
-        if UIDevice.current.model.contains("iPad")
-        {
-            deviceType = .ipad
-        }
-        else
-        {
-            deviceType = .iphone
-        }
-        
+        let deviceType: ALTDeviceType = .appleTV
+
         let preferredScreenshots = self.screenshots(for: deviceType)
         guard !preferredScreenshots.isEmpty else {
             // There are no screenshots for deviceType, so return _all_ screenshots instead.

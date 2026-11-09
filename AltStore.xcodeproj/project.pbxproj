@@ -999,7 +999,7 @@
 		};
 		A8E8DEA43059BC8800F69B47 /* XCRemoteSwiftPackageReference "CodeSignKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/mahee96/CodeSignKit";
+			repositoryURL = "https://github.com/mahee96/CodeSignKit.git";
 			requirement = {
 				branch = main;
 				kind = branch;
@@ -1010,6 +1010,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		A87939D2303A89CA004D9227 /* TVPairCore */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = A87939D1303A89C9004D9227 /* XCLocalSwiftPackageReference "Packages/TVPairCore" */;
 			productName = TVPairCore;
 		};
 		A8C37028302DA7F30010213A /* MarkdownKit */ = {
