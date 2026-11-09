@@ -1,20 +1,26 @@
 # SideTVstore controller fork
 
-This is an experimental **iPhone application managing a remote Apple TV**.
-It retains SideStore's Apple ID login, certificates, bundle IDs, signing,
+I built SideTVstore as an **iPhone application managing a remote Apple TV**.
+I kept SideStore's Apple ID login, certificates, bundle IDs, signing,
 IPA cache/import/export, app lists, and app operation pipeline. The iPhone
 controller itself is not an app to install or refresh on the TV.
 
-**A successful CI archive is not evidence of successful Apple TV installation.**
-On 2026-11-09 the fork owner reported that the features work as intended on a
-physical Apple TV. This is user-reported validation, without a recorded device
-model/OS test matrix. The automated checks still run without an Apple TV. The
-new certificate picker, pairing-file transfer and icon changes need targeted
-testing on the iPhone and TV.
+I've tested the app on a physical **iPhone running iOS 27.0**, installing apps
+on a physical **Apple TV running tvOS 27.2**. It also works perfectly inside
+**LiveContainer in my setup**. [My screenshots](../README.md#screenshots) show
+pairing, ready-to-install status, pairing-file controls, installed app icons,
+expiry dates, and upload progress.
+
+These are my physical-device results. CI still runs without an Apple TV, and
+a successful build or pairing alone does not prove installation support on
+other device or firmware combinations. The broader hardware and failure-case
+checklist below remains useful for validating those combinations.
 
 ## Setup and use
 
-1. Download `SideTVstore-unsigned-iphone-arm64` from the fork's Actions artifacts.
+1. Download `SideTVstore-unsigned.ipa` from the fork's
+   [Releases](https://github.com/hubzzzgr/SideStore-tvOS/releases), or obtain
+   `SideTVstore-unsigned-iphone-arm64` from Actions artifacts.
    Its IPA targets physical arm64 iPhones (iOS 17+). Sign/install the controller
    using your initial installation method. An unsigned IPA cannot be installed
    directly by iOS. CI needs no Apple ID, certificate, profile, or paid membership.
@@ -142,8 +148,9 @@ last upload stage and accepted byte count with the new error message.
   Indefinite operation after a single initial installation therefore depends
   on how the controller is installed; this fork cannot promise it for free
   development signing. TV app refresh does not renew the controller.
-- LiveContainer guest Keychain and Local Network access depend on its host.
-  A successful standalone build does not establish LiveContainer compatibility.
+- I've tested the controller successfully inside LiveContainer on the setup
+  above. Other host versions/configurations still need validation; guest
+  Keychain and Local Network access depend on the host.
 
 Before claiming support, record both device models/OS versions and verify:
 fresh PIN setup → saved-record reconnect after app/TV restarts and DHCP change →
