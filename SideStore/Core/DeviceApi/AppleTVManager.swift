@@ -39,7 +39,8 @@ final class AppleTVManager: ObservableObject {
         if let bound = UserDefaults.standard.string(forKey: "AppleTV.managedTarget"), bound != id.uuidString {
             throw OperationError.invalidParameters("This library belongs to another Apple TV. Remove its tracked apps before switching the managed TV.")
         }
-        developer?.cancel(); developer = nil; information = nil; readyAt = .distantPast
+        developer?.cancel(); developer = nil; information = nil; installedApps = [:]; readyAt = .distantPast
+        status = "Connecting to the selected Apple TV…"
         UserDefaults.standard.removeObject(forKey: "AppleTV.osVersion")
         selectedID = id
         UserDefaults.standard.set(id.uuidString, forKey: "AppleTV.selected")
@@ -54,7 +55,9 @@ final class AppleTVManager: ObservableObject {
         saved = try await vault.delete(id: id)
         if selectedID == id {
             developer?.cancel(); developer = nil; selectedID = nil; information = nil
+            installedApps = [:]; status = "Choose an Apple TV to begin."
             UserDefaults.standard.removeObject(forKey: "AppleTV.selected")
+            UserDefaults.standard.removeObject(forKey: "AppleTV.osVersion")
             readiness.send(.success(false))
         }
     }

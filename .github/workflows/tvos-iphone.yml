@@ -65,7 +65,7 @@ jobs:
               rm -f "$bundle/embedded.mobileprovision"
             done
           xcrun lipo -info build/unsigned/Payload/SideStore.app/SideStore | tee artifacts/architecture.txt
-          xcrun lipo -verify_arch arm64 build/unsigned/Payload/SideStore.app/SideStore
+          xcrun lipo build/unsigned/Payload/SideStore.app/SideStore -verify_arch arm64
           xcrun vtool -show-build build/unsigned/Payload/SideStore.app/SideStore | tee -a artifacts/architecture.txt
           /usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms:0' build/unsigned/Payload/SideStore.app/Info.plist | grep -x iPhoneOS
           if codesign -d build/unsigned/Payload/SideStore.app >/dev/null 2>&1; then

@@ -50,6 +50,22 @@ final class RemoteAppServicesTests: XCTestCase {
         do { _ = try await RemoteAFC(stream: wire).request(16); XCTFail("No disk space must fail") }
         catch { XCTAssertTrue(error.localizedDescription.contains("18")) }
     }
+    func testExistingStagingDirectoryRequiresDirectoryMetadata() async throws {
+        let wire = AppWire(afc(0, 1, RemoteAFC.u64(16)) + afc(1, 2, Data("st_ifmt\0S_IFDIR\0".utf8)))
+        try await RemoteAFC(stream: wire).directory("PublicStaging")
+        XCTAssertEqual(wire.remaining, 0)
+    }
+    func testExistingFileCannotBeUsedAsStagingDirectory() async throws {
+        let wire = AppWire(afc(0, 1, RemoteAFC.u64(16)) + afc(1, 2, Data("st_ifmt\0S_IFREG\0".utf8)))
+        do { try await RemoteAFC(stream: wire).directory("PublicStaging"); XCTFail("A file is not a directory") }
+        catch { XCTAssertTrue(error is TVInstallationError) }
+    }
+    func testDirectoryPermissionFailureIsNotIgnored() async throws {
+        let wire = AppWire(afc(0, 1, RemoteAFC.u64(10)))
+        do { try await RemoteAFC(stream: wire).directory("PublicStaging"); XCTFail("Permission denial must stop upload") }
+        catch TVInstallationError.afcStatus(10) {} // PERM_DENIED
+        catch { XCTFail("Unexpected error: \(error)") }
+    }
     func testChunkedIPAUploadUsesFileHandleAndCorrectWriteHeader() async throws {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try Data(repeating: 0xa5, count: 70_000).write(to: file)

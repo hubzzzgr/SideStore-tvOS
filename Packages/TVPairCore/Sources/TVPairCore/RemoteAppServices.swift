@@ -1,12 +1,13 @@
 import Foundation
 
 public enum TVInstallationError: Error, LocalizedError {
-    case missingService(String), protocolFailure(String), deviceRejected(String), busy
+    case missingService(String), protocolFailure(String), deviceRejected(String), afcStatus(UInt64), busy
     public var errorDescription: String? {
         switch self {
         case let .missingService(name): return "The Apple TV does not advertise \(name). Pairing alone does not permit installation. Its developer services or developer image may be unavailable on this tvOS version."
         case let .protocolFailure(stage): return "Apple TV returned an invalid response during \(stage)."
         case let .deviceRejected(code): return "Apple TV rejected the operation: \(code)."
+        case let .afcStatus(code): return "Apple TV AFC returned status \(code)."
         case .busy: return "Another Apple TV operation is in progress."
         }
     }
@@ -105,15 +106,22 @@ actor RemoteAFC {
         if opcode == 1 {
             guard body.count == 8 else { throw TVInstallationError.protocolFailure("AFC status") }
             let status = Self.number(body)
-            guard status == 0 else { throw TVInstallationError.deviceRejected("AFC status \(status)") }
+            guard status == 0 else { throw TVInstallationError.afcStatus(status) }
         }
         guard accepting.contains(opcode) else { throw TVInstallationError.protocolFailure("AFC opcode") }
         return body
     }
     func directory(_ path: String) async throws {
-        // PublicStaging normally exists. Check it first rather than swallowing
-        // permission failures or all MAKE_DIR errors as 'already exists'.
-        _ = try await request(9, header: Data(path.utf8) + Data([0]))
+        let name = Data(path.utf8) + Data([0])
+        do { _ = try await request(9, header: name) }
+        catch TVInstallationError.afcStatus(16) { // OBJECT_EXISTS
+            let info = try await request(10, header: name, accepting: [2])
+            let fields = info.split(separator: 0).map { String(decoding: $0, as: UTF8.self) }
+            guard fields.count % 2 == 0,
+                  stride(from: 0, to: fields.count, by: 2).contains(where: { fields[$0] == "st_ifmt" && fields[$0 + 1] == "S_IFDIR" }) else {
+                throw TVInstallationError.protocolFailure("AFC staging directory type")
+            }
+        }
     }
     func remove(_ path: String) async throws { _ = try await request(8, header: Data(path.utf8) + Data([0])) }
     func upload(_ url: URL, path: String) async throws {
@@ -170,6 +178,7 @@ extension DeveloperConnection {
         let path = directory + "/Application.ipa"
         return try await usingService("com.apple.afc.shim.remote") { service in
             let afc = RemoteAFC(stream: service.stream)
+            try await afc.directory("PublicStaging")
             try await afc.directory(directory)
             do { try await afc.upload(url, path: path); return path }
             catch { try? await afc.remove(path); try? await afc.remove(directory); throw error }
