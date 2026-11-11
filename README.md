@@ -53,9 +53,3 @@ xcodebuild -project AltStore.xcodeproj -scheme SideStore -configuration Release 
   -destination 'generic/platform=iOS' -sdk iphoneos ARCHS=arm64 \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO archive
 ```
-
-## Credits and source
-
-This project builds on [SideStore](https://github.com/SideStore/SideStore), originally forked from [AltStore](https://github.com/altstoreio/AltStore), and my [TVPair pairing POC](https://github.com/hubzzzgr/tvOS-pairtest). The original authorship, AGPL-3.0 license, and third-party notices remain intact. This fork has been developed with AI assistance.
-
-Development is on the [`tvos` branch](https://github.com/hubzzzgr/SideStore-tvOS/tree/tvos).
