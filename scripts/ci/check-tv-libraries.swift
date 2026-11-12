@@ -29,9 +29,15 @@ private class ScopeBase: NSManagedObject, Fetchable {
             switch attribute.attributeType {
             case .stringAttributeType: object.setValue(UUID().uuidString, forKey: key)
             case .dateAttributeType: object.setValue(Date(), forKey: key)
+            case .URIAttributeType: object.setValue(URL(string: "https://example.invalid/fixture")! as NSURL, forKey: key)
+            case .UUIDAttributeType: object.setValue(UUID(), forKey: key)
+            case .decimalAttributeType: object.setValue(NSDecimalNumber.zero, forKey: key)
             case .binaryDataAttributeType: object.setValue(Data(), forKey: key)
             case .transformableAttributeType: object.setValue(NSArray(), forKey: key)
-            default: object.setValue(0, forKey: key)
+            case .integer16AttributeType, .integer32AttributeType, .integer64AttributeType,
+                 .doubleAttributeType, .floatAttributeType, .booleanAttributeType:
+                object.setValue(0, forKey: key)
+            default: preconditionFailure("Unsupported fixture attribute: \(name).\(key)")
             }
         }
         return object
