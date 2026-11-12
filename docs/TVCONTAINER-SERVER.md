@@ -96,3 +96,25 @@ The TVcontainer client must implement this contract; advertising the service
 does not add discovery to an older TVcontainer build. Discovery and complete
 large-file transfers still need physical-device validation with that client,
 including LiveContainer-hosted SideTVstore.
+
+## LiveContainer startup and discovery (build 0704)
+
+The TCP listener starts independently of Bonjour. Only after the socket is
+ready does a main-run-loop `NetService` publisher advertise `_sidetvstore._tcp`.
+A registration failure leaves HTTP running and displays the Bonjour error
+separately. TCP failures and startup timeouts now retain their actual error
+details instead of treating every failure as denied local-network permission.
+
+Inside LiveContainer, the host's local-network authorization and permitted
+Bonjour service declarations can differ from the guest's. If the host blocks
+the custom service, SideTVstore cannot change that installed host policy.
+Use the displayed LAN address, or long-press a shared file and choose **Copy
+Download Link** or **Share**. Automatic discovery requires a host configuration
+that permits `_sidetvstore._tcp` in `NSBonjourServices`. This is separate from
+granting general Local Network access; see Apple's
+[local-network privacy guidance](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy).
+
+The Settings entry is a standard SideStore inset button directly below Account,
+with the title **TVcontainer** and description **Send IPAs and P12 certificates
+directly to TVContainer**. The server still stops on backgrounding and starts
+off on every launch. No background execution or audio workaround is used.

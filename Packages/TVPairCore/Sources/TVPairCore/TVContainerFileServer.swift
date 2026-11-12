@@ -5,11 +5,15 @@ import Darwin
 
 public enum TVContainerServerError: LocalizedError {
     case noLAN, stopped, unavailable
+    case listener(String)
+    case timeout(String?)
     public var errorDescription: String? {
         switch self {
         case .noLAN: return "Connect the iPhone to Wi-Fi or a local Ethernet network first."
         case .stopped: return "The temporary server was stopped."
         case .unavailable: return "The local server could not start. Check Local Network access and try again."
+        case .listener(let detail): return "The TCP server could not start. \(detail)"
+        case .timeout(let detail): return "The TCP server did not become ready within 15 seconds.\(detail.map { " " + $0 } ?? "")"
         }
     }
 }
@@ -56,6 +60,7 @@ public actor TVContainerFileServer {
     private var peers: [UUID: NWConnection] = [:]
     private var files: [UUID: (TVContainerFile, URL)] = [:]
     private var failure: (@Sendable (String) -> Void)?
+    private var waitingReason: String?
 
     public init() {}
     public func setFiles(_ values: [(TVContainerFile, URL)]) {
@@ -68,14 +73,17 @@ public actor TVContainerFileServer {
         stop()
         guard let lan = LANBinding.current() else { throw TVContainerServerError.noLAN }
         let parameters = NWParameters.tcp
-        parameters.prohibitedInterfaceTypes = [.cellular, .loopback]
+        // Bind to the LAN address and check the peer subnet below. Prohibiting
+        // loopback routes here can also reject a hosted app's internal routing.
         parameters.includePeerToPeer = false
         parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(lan.address), port: .any)
-        let service = try NWListener(using: parameters, on: .any)
+        let service: NWListener
+        do { service = try NWListener(using: parameters) }
+        catch { throw TVContainerServerError.listener(String(describing: error)) }
         let token = generation
         binding = lan; failure = onFailure; listener = service
-        service.service = NWListener.Service(name: "SideTVstore", type: TVContainerHTTP.serviceType, domain: "local.",
-            txtRecord: NetService.data(fromTXTRecord: ["api": "1", "path": "/v1/files", "protocol": "http", "app": "SideTVstore"].mapValues { Data($0.utf8) }))
+        // Bonjour is published separately after the TCP socket is ready. A host
+        // missing our service declaration must not take down direct LAN access.
         service.newConnectionHandler = { [weak self] peer in Task { await self?.accept(peer, generation: token) } }
         service.stateUpdateHandler = { [weak self] state in Task { await self?.changed(state, generation: token) } }
         let deadline = Task {
@@ -90,17 +98,21 @@ public actor TVContainerFileServer {
         return "http://\(lan.address):\(port)"
     }
     public func stop() {
+        stop(reason: TVContainerServerError.stopped)
+    }
+    private func stop(reason: Error) {
         generation = UUID()
         listener?.cancel(); listener = nil; binding = nil
         for peer in peers.values { peer.cancel() }
-        peers.removeAll(); failure = nil
+        peers.removeAll(); failure = nil; waitingReason = nil
         let continuation = pendingStart; pendingStart = nil
-        continuation?.resume(throwing: TVContainerServerError.stopped)
+        continuation?.resume(throwing: reason)
     }
     private func startTimedOut(generation token: UUID) {
         guard token == generation, pendingStart != nil else { return }
         let report = failure
-        stop(); report?(TVContainerServerError.unavailable.localizedDescription)
+        let error = TVContainerServerError.timeout(waitingReason)
+        stop(reason: error); report?(error.localizedDescription)
     }
     private func changed(_ state: NWListener.State, generation token: UUID) {
         guard token == generation else { return }
@@ -109,9 +121,12 @@ public actor TVContainerFileServer {
             let continuation = pendingStart; pendingStart = nil
             if let port = listener?.port?.rawValue { continuation?.resume(returning: port) }
             else { continuation?.resume(throwing: TVContainerServerError.unavailable); stop() }
-        case .failed:
+        case .waiting(let error):
+            waitingReason = String(describing: error)
+        case .failed(let error):
             let report = failure
-            stop(); report?(TVContainerServerError.unavailable.localizedDescription)
+            let reason = TVContainerServerError.listener(String(describing: error))
+            stop(reason: reason); report?(reason.localizedDescription)
         default: break
         }
     }

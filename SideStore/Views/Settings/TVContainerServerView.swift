@@ -12,7 +12,10 @@ struct TVContainerServerView: View {
                 if model.starting { ProgressView("Starting server…") }
                 if let address = model.address {
                     LabeledContent("Address", value: address).textSelection(.enabled)
-                    LabeledContent("Discovery", value: "_sidetvstore._tcp")
+                    LabeledContent("Discovery", value: model.discoveryReady ? "_sidetvstore._tcp" : (model.discoveryWarning == nil ? "Registering…" : "Unavailable"))
+                    if let warning = model.discoveryWarning {
+                        Text(warning).font(.footnote).foregroundStyle(.secondary)
+                    }
                 }
             } header: { Text("TVcontainer Server") }
             footer: { Text("Share only the files below with devices on the same local network. The server stops when you turn it off, leave the app, or restart it. It does not keep the app awake or run a background service.") }
@@ -28,6 +31,16 @@ struct TVContainerServerView: View {
                             Text(file.name).lineLimit(2)
                             Text(ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file))
                                 .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .contextMenu {
+                        if let url = model.downloadURL(for: file) {
+                            SwiftUI.Button("Copy Download Link", systemImage: "link") {
+                                UIPasteboard.general.setItems([["public.url": url]], options: [
+                                    .localOnly: true, .expirationDate: Date().addingTimeInterval(300)
+                                ])
+                            }
+                            ShareLink(item: url)
                         }
                     }
                 }.onDelete(perform: model.remove)

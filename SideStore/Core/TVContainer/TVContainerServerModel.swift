@@ -10,9 +10,12 @@ final class TVContainerServerModel: ObservableObject {
     @Published private(set) var starting = false
     @Published private(set) var importing = false
     @Published private(set) var address: String?
+    @Published private(set) var discoveryReady = false
+    @Published private(set) var discoveryWarning: String?
     @Published private(set) var files: [TVContainerFile] = []
     @Published var error: String?
     private let server = TVContainerFileServer()
+    private let advertiser = TVContainerBonjourAdvertiser()
     private var revision = UUID()
     private var backgroundObserver: NSObjectProtocol?
     nonisolated private static var directory: URL {
@@ -43,10 +46,15 @@ final class TVContainerServerModel: ObservableObject {
         try JSONEncoder().encode(files).write(to: manifest, options: [.atomic, .completeFileProtection])
     }
     private func publishFiles() async { await server.setFiles(files.map { ($0, Self.url($0.id)) }) }
+    func downloadURL(for file: TVContainerFile) -> URL? {
+        guard let address, let base = URL(string: address) else { return nil }
+        return base.appendingPathComponent("v1/files").appendingPathComponent(file.id.uuidString)
+    }
 
     func setEnabled(_ value: Bool) {
         revision = UUID(); let token = revision
         enabled = value; starting = value; address = nil
+        advertiser.stop(); discoveryReady = false; discoveryWarning = nil
         Task {
             guard revision == token else { return }
             if !value { await server.stop(); return }
@@ -57,13 +65,22 @@ final class TVContainerServerModel: ObservableObject {
                     Task { @MainActor in
                         guard let self, self.revision == token else { return }
                         self.enabled = false; self.starting = false; self.address = nil; self.error = message
+                        self.advertiser.stop(); self.discoveryReady = false; self.discoveryWarning = nil
                     }
                 }
                 guard revision == token, enabled else { return }
                 starting = false; address = result
+                if let port = URLComponents(string: result)?.port, let servicePort = Int32(exactly: port) {
+                    advertiser.start(port: servicePort) { [weak self] warning in
+                        guard let self, self.revision == token, self.enabled else { return }
+                        self.discoveryReady = warning == nil
+                        self.discoveryWarning = warning
+                    }
+                }
             } catch {
                 guard revision == token else { return }
                 enabled = false; starting = false; address = nil; self.error = error.localizedDescription
+                advertiser.stop(); discoveryReady = false; discoveryWarning = nil
             }
         }
     }

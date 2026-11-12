@@ -2,6 +2,39 @@ import XCTest
 @testable import TVPairCore
 
 final class TVContainerHTTPTests: XCTestCase {
+    #if canImport(Network) && canImport(Darwin)
+    func testTCPStartsWithoutBonjourAndStreamsSelectedFile() async throws {
+        let server = TVContainerFileServer()
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let contents = Data("selected-file-bytes".utf8), id = UUID()
+        let file = folder.appendingPathComponent(id.uuidString)
+        try contents.write(to: file)
+        await server.setFiles([(TVContainerFile(id: id, name: "Example.ipa", size: Int64(contents.count), contentType: "application/octet-stream"), file)])
+        let address: String
+        do { address = try await server.start { _ in } }
+        catch TVContainerServerError.noLAN { throw XCTSkip("Runner has no Wi-Fi/Ethernet IPv4 interface") }
+        do {
+            let session = URLSession(configuration: .ephemeral)
+            defer { session.invalidateAndCancel() }
+            var request = URLRequest(url: URL(string: address + "/v1/files/" + id.uuidString)!)
+            request.timeoutInterval = 10
+            let (data, response) = try await session.data(for: request)
+            XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+            XCTAssertEqual(data, contents)
+            request.setValue("bytes=3-7", forHTTPHeaderField: "Range")
+            let (partial, rangeResponse) = try await session.data(for: request)
+            XCTAssertEqual((rangeResponse as? HTTPURLResponse)?.statusCode, 206)
+            XCTAssertEqual(partial, contents.subdata(in: 3..<8))
+            request.httpMethod = "HEAD"
+            let (empty, headResponse) = try await session.data(for: request)
+            XCTAssertEqual((headResponse as? HTTPURLResponse)?.statusCode, 206)
+            XCTAssertTrue(empty.isEmpty)
+            await server.stop()
+        } catch { await server.stop(); throw error }
+    }
+    #endif
     func testReadOnlyRoutesRejectTraversalAndRequestSmuggling() throws {
         let request = try TVContainerHTTP.request(Data("GET /v1/files HTTP/1.1\r\nHost: iphone.local\r\n\r\n".utf8))
         XCTAssertEqual(request.path, "/v1/files")
