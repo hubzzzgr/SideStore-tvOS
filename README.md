@@ -6,7 +6,7 @@ I made SideTVstore so I can install and manage tvOS apps on my Apple TV directly
 
 I kept SideStore's Apple ID sign-in, signing, IPA management, and familiar interface, and replaced the iPhone pairing/VPN connection with a direct connection to a paired Apple TV. Once the controller is installed, you can manage my TV apps from my iPhone without a computer or LocalDevVPN.
 
-**[Download the IPA](https://github.com/hubzzzgr/SideStore-tvOS/releases/download/v0.7.0-tvos.0702/SideTVstore-unsigned.ipa)** · [Release notes](https://github.com/hubzzzgr/SideStore-tvOS/releases)
+**[Download the IPA](https://github.com/hubzzzgr/SideStore-tvOS/releases/)** · [Release notes](https://github.com/hubzzzgr/SideStore-tvOS/releases)
 
 ## Tested setup
 
