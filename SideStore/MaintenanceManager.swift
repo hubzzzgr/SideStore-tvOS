@@ -118,8 +118,7 @@ private extension MaintenanceManager {
     func migrateLegacyCachedAppBundles() async {
         let context = DatabaseManager.shared.viewContext
         await context.perform {
-            let fetchRequest: NSFetchRequest<InstalledApp> = InstalledApp.fetchRequest()
-            let installedApps = (try? context.fetch(fetchRequest)) ?? []
+            let installedApps = ((try? InstalledApp.allLibraries(in: context)) ?? []).filter(\.usesLegacyStorage)
             let appsByBundleID = Dictionary(installedApps.map { ($0.resignedBundleIdentifier, $0) }, uniquingKeysWith: { first, _ in first })
 
             var didMutate = false
@@ -173,8 +172,8 @@ private extension MaintenanceManager {
     func migrateLegacyCachedSigningCertificates() async {
         let context = DatabaseManager.shared.viewContext
         await context.perform {
-            let fetchRequest: NSFetchRequest<InstalledApp> = InstalledApp.fetchRequest()
-            guard let installedApps = try? context.fetch(fetchRequest) else { return }
+            guard let allApps = try? InstalledApp.allLibraries(in: context) else { return }
+            let installedApps = allApps.filter(\.usesLegacyStorage)
             let fileManager = FileManager.default
             let appsDir = InstalledApp.appsDirectoryURL
 

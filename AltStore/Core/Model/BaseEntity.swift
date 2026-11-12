@@ -15,6 +15,7 @@ import CoreData
 
 public class BaseEntity: NSManagedObject, Fetchable
 {
+    public class var fetchScopePredicate: NSPredicate? { nil }
     @nonobjc class func fetchRequest<T>() -> NSFetchRequest<T>
     {
         fatalError("method not implemented, subclass needs to provide an implementation")

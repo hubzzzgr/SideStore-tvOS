@@ -87,9 +87,10 @@ extension SettingsViewController
         case certificateManagement  // row 9 - Certificate Management
         case backupAndRestore       // row 10 - Backup & Restore
         case userCustomizations     // row 11 - User Customizations
+        case tvcontainerServer
 
         static var allCases: [AdvancedSettingsRow] {
-            let rows: [AdvancedSettingsRow] = [.pairingFileManagement, .anisetteServers, .developerServices, .profileManagement, .certificateManagement, .userCustomizations]
+            let rows: [AdvancedSettingsRow] = [.pairingFileManagement, .anisetteServers, .developerServices, .profileManagement, .certificateManagement, .userCustomizations, .tvcontainerServer]
             return rows
         }
     }
@@ -945,6 +946,8 @@ extension SettingsViewController
     
     override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat
     {
+        if Section.allCases[indexPath.section] == .advancedSettings,
+           AdvancedSettingsRow.allCases[indexPath.row] == .tvcontainerServer { return 50 }
         if Section.allCases[indexPath.section] == .account && indexPath.row == 3 {
             return AccountVerificationRow.preferredHeight
         }
@@ -974,6 +977,8 @@ extension SettingsViewController
 
     override func tableView(_ tableView: UITableView, indentationLevelForRowAt indexPath: IndexPath) -> Int
     {
+        if Section.allCases[indexPath.section] == .advancedSettings,
+           AdvancedSettingsRow.allCases[indexPath.row] == .tvcontainerServer { return 0 }
         if Section.allCases[indexPath.section] == .account && indexPath.row == 3 {
             return 0
         }
@@ -1003,6 +1008,16 @@ extension SettingsViewController
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell
     {
+        if Section.allCases[indexPath.section] == .advancedSettings,
+           AdvancedSettingsRow.allCases[indexPath.row] == .tvcontainerServer {
+            let cell = tableView.dequeueReusableCell(withIdentifier: "TVcontainerServer")
+                ?? UITableViewCell(style: .default, reuseIdentifier: "TVcontainerServer")
+            cell.textLabel?.text = "TVcontainer Server"
+            cell.imageView?.image = UIImage(systemName: "externaldrive.connected.to.line.below")
+            cell.accessoryType = .disclosureIndicator
+            cell.backgroundColor = .secondarySystemGroupedBackground
+            return cell
+        }
         if Section.allCases[indexPath.section] == .account && indexPath.row == 3 {
             let cell = tableView.dequeueReusableCell(withIdentifier: AccountVerificationRow.reuseIdentifier) as? AccountVerificationRow
                 ?? AccountVerificationRow()
@@ -1345,6 +1360,11 @@ extension SettingsViewController
                 vc.title = NSLocalizedString("User Customizations", comment: "")
                 self.prepare(for: UIStoryboardSegue(identifier: "diagnostics", source: self, destination: vc), sender: nil)
                 
+            case .tvcontainerServer:
+                let vc = UIHostingController(rootView: TVContainerServerView())
+                vc.view.backgroundColor = .settingsBackground
+                navigationController?.pushViewController(vc, animated: true)
+
             case .refreshAttempts: break
             }
         

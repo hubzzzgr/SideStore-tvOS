@@ -62,8 +62,7 @@ final class AppleTVManager: ObservableObject {
             }
         }
         saved = try await vault.save(record)
-        let bound = UserDefaults.standard.string(forKey: "AppleTV.managedTarget")
-        if bound == nil || bound == record.id.uuidString { try select(record.id) }
+        try select(record.id)
         status = "Pairing imported. Connect to verify this Apple TV."
     }
     func exportPairing(_ id: UUID) async throws -> Data {
@@ -71,9 +70,16 @@ final class AppleTVManager: ObservableObject {
     }
     func startDiscovery() { discovery.start() }
     func select(_ id: UUID) throws {
-        guard leases == 0, !busy, connecting == nil else { throw TVInstallationError.busy }
-        if let bound = UserDefaults.standard.string(forKey: "AppleTV.managedTarget"), bound != id.uuidString {
-            throw OperationError.invalidParameters("This library belongs to another Apple TV. Remove its tracked apps before switching the managed TV.")
+        guard leases == 0, !busy, connecting == nil, !AppManager.shared.isActivelyManagingAnyApp else { throw TVInstallationError.busy }
+        guard saved.contains(where: { $0.id == id }) else { throw OperationError.invalidParameters("Choose a saved Apple TV.") }
+        let context = DatabaseManager.shared.viewContext
+        try context.performAndWait {
+            let unassigned = try InstalledApp.allLibraries(in: context).filter { $0.libraryIdentifier == TVLibrary.unassignedIdentifier }
+            for app in unassigned { app.libraryIdentifier = id.uuidString }
+            if context.hasChanges { try context.save() }
+            if UserDefaults.standard.string(forKey: "AppleTV.legacyLibrary") == TVLibrary.unassignedIdentifier {
+                UserDefaults.standard.set(id.uuidString, forKey: "AppleTV.legacyLibrary")
+            }
         }
         developer?.cancel(); developer = nil; information = nil; installedApps = [:]; readyAt = .distantPast
         status = "Connecting to the selected Apple TV…"
@@ -82,10 +88,19 @@ final class AppleTVManager: ObservableObject {
         UserDefaults.standard.set(id.uuidString, forKey: "AppleTV.selected")
         UserDefaults.standard.isDeviceRegistered = false
         readiness.send(.success(false))
+        NotificationCenter.default.post(name: TVLibrary.didChange, object: nil)
+    }
+    func selectLibrary(_ id: UUID) async throws {
+        await stopIconRefresh()
+        try select(id)
     }
     func delete(_ id: UUID) async throws {
         guard leases == 0, !busy, connecting == nil else { throw TVInstallationError.busy }
-        guard UserDefaults.standard.string(forKey: "AppleTV.managedTarget") != id.uuidString else {
+        let apps = try DatabaseManager.shared.viewContext.performAndWait {
+            try InstalledApp.allLibraries(in: DatabaseManager.shared.viewContext)
+                .contains { !$0.isDeleted && $0.libraryIdentifier == id.uuidString }
+        }
+        guard !apps else {
             throw OperationError.invalidParameters("Remove this TV's tracked apps before forgetting its pairing.")
         }
         saved = try await vault.delete(id: id)
@@ -93,6 +108,7 @@ final class AppleTVManager: ObservableObject {
             developer?.cancel(); developer = nil; selectedID = nil; information = nil
             installedApps = [:]; status = "Choose an Apple TV to begin."
             UserDefaults.standard.removeObject(forKey: "AppleTV.selected")
+            NotificationCenter.default.post(name: TVLibrary.didChange, object: nil)
             UserDefaults.standard.removeObject(forKey: "AppleTV.osVersion")
             readiness.send(.success(false))
         }
@@ -233,7 +249,6 @@ final class AppleTVManager: ObservableObject {
     }
     func refreshIcons(_ requests: [AppleTVIconRequest]) {
         guard !requests.isEmpty, leases == 0, !busy, connecting == nil, iconRefresh == nil else { return }
-        if let bound = UserDefaults.standard.string(forKey: "AppleTV.managedTarget"), bound != selectedID?.uuidString { return }
         leases = 1
         iconRefresh = Task {
             var changed = false

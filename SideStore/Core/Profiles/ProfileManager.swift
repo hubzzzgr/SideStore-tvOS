@@ -247,10 +247,15 @@ public final class ProfileManager: @unchecked Sendable {
     }
 
     private func getAssignedProfilesDict() -> [String: String] {
-        return UserDefaults.standard.dictionary(forKey: assignedProfilesKey) as? [String: String] ?? [:]
+        let key = assignedProfilesKey + "." + TVLibrary.currentIdentifier
+        if let values = UserDefaults.standard.dictionary(forKey: key) as? [String: String] { return values }
+        if UserDefaults.standard.string(forKey: "AppleTV.legacyLibrary") == TVLibrary.currentIdentifier {
+            return UserDefaults.standard.dictionary(forKey: assignedProfilesKey) as? [String: String] ?? [:]
+        }
+        return [:]
     }
 
     private func saveAssignedProfilesDict(_ dict: [String: String]) {
-        UserDefaults.standard.set(dict, forKey: assignedProfilesKey)
+        UserDefaults.standard.set(dict, forKey: assignedProfilesKey + "." + TVLibrary.currentIdentifier)
     }
 }

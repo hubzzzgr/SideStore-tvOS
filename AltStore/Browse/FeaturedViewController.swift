@@ -325,11 +325,6 @@ private extension FeaturedViewController
             // Sort by Source first to group into sections.
             NSSortDescriptor(keyPath: \StoreApp._source?.featuredSortID, ascending: true),
             
-            // Show uninstalled apps first.
-            // Sorting by StoreApp.installedApp crashes because InstalledApp does not respond to compare:
-            // Instead, sort by StoreApp.installedApp.storeApp.source.sourceIdentifier, which will be either nil OR source ID.
-            NSSortDescriptor(keyPath: \StoreApp.installedApp?.storeApp?.sourceIdentifier, ascending: true),
-            
             // Show featured apps first.
             // Sorting by StoreApp.featuringSource crashes because Source does not respond to compare:
             // Instead, sort by StoreApp.featuringSource.identifier, which will be either nil OR source ID.
@@ -343,17 +338,9 @@ private extension FeaturedViewController
         ]
         
         let sourceHasRemainingAppsPredicate = NSPredicate(format:
-            """
-            SUBQUERY(%K, $app,
-                ($app.%K != %@) AND ($app.%K == nil)
-            ).@count > 0
-            """,
-            #keyPath(StoreApp._source._apps),
-            #keyPath(StoreApp.bundleIdentifier),
-            StoreApp.altstoreAppID,
-            #keyPath(StoreApp.installedApp)
-        )
-        
+            "SUBQUERY(%K, $app, $app.bundleIdentifier != %@ AND SUBQUERY($app.installedApps, $installed, $installed.libraryIdentifier == %@).@count == 0).@count > 0",
+            #keyPath(StoreApp._source._apps), StoreApp.altstoreAppID, TVLibrary.currentIdentifier)
+
         let primaryFetchRequest = fetchRequest.copy() as! NSFetchRequest<StoreApp>
         primaryFetchRequest.predicate = sourceHasRemainingAppsPredicate
         

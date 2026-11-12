@@ -258,17 +258,11 @@ final class PipelineRunner: Sendable
             // persist the result
             let bundleID = result.bundleIdentifier
             let dbContext = group.dbContext
-            let targetID = await AppleTVManager.shared.selectedID?.uuidString
             do {
                 try await dbContext.perform {
                     let hasChanges = dbContext.hasChanges
                     if hasChanges {
                         try dbContext.save()
-                    }
-                    if InstalledApp.all(in: dbContext).contains(where: { !$0.isDeleted && $0.bundleIdentifier != StoreApp.altstoreAppID }) {
-                        UserDefaults.standard.set(targetID, forKey: "AppleTV.managedTarget")
-                    } else {
-                        UserDefaults.standard.removeObject(forKey: "AppleTV.managedTarget")
                     }
                     debugLog("[AppManager] performOperation: Context changes were saved for installedApp: \(bundleID)")
                 }
@@ -353,6 +347,12 @@ final class PipelineRunner: Sendable
         }
         
         if let app = operation.app as? InstalledApp {
+            try await group.dbContext.perform {
+                let record = try group.dbContext.existingObject(with: app.objectID) as! InstalledApp
+                guard record.libraryIdentifier == TVLibrary.currentIdentifier else {
+                    throw OperationError.invalidParameters("This app belongs to another Apple TV library. Select that TV before managing it.")
+                }
+            }
             context.installedApp = app
             context.appBundleFingerprint = app.appBundleFingerprint
             context.useMainProfile = app.useMainProfile

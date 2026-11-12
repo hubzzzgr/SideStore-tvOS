@@ -14,6 +14,11 @@ import SideSign
 @objc(InstalledExtension)
 public class InstalledExtension: BaseEntity, InstalledAppProtocol
 {
+    public var libraryIdentifier: String? { parentApp?.libraryIdentifier }
+    public var usesLegacyStorage: Bool { parentApp?.usesLegacyStorage ?? true }
+    public override class var fetchScopePredicate: NSPredicate? {
+        NSPredicate(format: "parentApp.libraryIdentifier == %@", TVLibrary.currentIdentifier)
+    }
     /* Properties */
     @NSManaged public var name: String
     @NSManaged public var bundleIdentifier: String
@@ -85,6 +90,8 @@ public extension InstalledExtension
 {
     @nonobjc class func fetchRequest() -> NSFetchRequest<InstalledExtension>
     {
-        return NSFetchRequest<InstalledExtension>(entityName: "InstalledExtension")
+        let request = NSFetchRequest<InstalledExtension>(entityName: "InstalledExtension")
+        request.predicate = fetchScopePredicate
+        return request
     }
 }

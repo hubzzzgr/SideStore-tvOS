@@ -50,6 +50,18 @@ jobs:
           set -o pipefail
           export TVPAIR_OPENSSL_CLI="$(brew --prefix openssl@3)/bin/openssl"
           swift test --package-path Packages/TVPairCore 2>&1 | tee artifacts/protocol-tests.log
+      - name: TVcontainer request and range checks
+        run: |
+          set -o pipefail
+          swift test --package-path Packages/TVPairCore --filter TVContainerHTTPTests 2>&1 | tee artifacts/tvcontainer-tests.log
+      - name: TV library migration and isolation checks
+        run: |
+          set -euo pipefail
+          check_directory=$(mktemp -d)
+          xcrun momc 'AltStore/Core/Model/AltStore.xcdatamodeld/AltStore 17_7.xcdatamodel' "$check_directory/legacy.mom"
+          xcrun momc 'AltStore/Core/Model/AltStore.xcdatamodeld/AltStore 17_8.xcdatamodel' "$check_directory/current.mom"
+          xcrun swiftc Shared/TVLibrary.swift AltStore/Core/Protocols/Fetchable.swift scripts/ci/check-tv-libraries.swift -o "$check_directory/check-libraries"
+          "$check_directory/check-libraries" "$check_directory/legacy.mom" "$check_directory/current.mom" "$check_directory" | tee artifacts/library-tests.log
       - name: Archive physical iPhone app without credentials
         run: |
           set -o pipefail

@@ -76,6 +76,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool
     {
+        TVContainerServerModel.shared.setEnabled(false)
         // navigation bar buttons spacing is too much (so hack it to use minimal spacing)
         // this is swift-5 specific behavior and might change
         // https://stackoverflow.com/a/64988363/11971304
@@ -176,6 +177,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                 debugLog("Starting DatabaseManager...")
                 try await DatabaseManager.shared.start()
                 debugLog("Started DatabaseManager.")
+                AppManager.shared.updateAllSources { result in
+                    if case .failure = result {
+                        debugLog("[Sources] Launch refresh failed; keeping the last saved catalog.")
+                    }
+                }
                 
                 debugLog("Reconciling any staged drafts started...")
                 await Self.reconcileSelfReinstallationIfNeeded()

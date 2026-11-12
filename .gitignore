@@ -73,6 +73,8 @@ source-metadata.json
 release-notes.md
 *.md
 !README.md
+!docs/TVCONTAINER-SERVER.md
+!docs/TV-LIBRARIES.md
 !CONTRIBUTING.md
 !CERTIFICATE-OF-ORIGIN.md
 !AGENTS.md

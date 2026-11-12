@@ -67,7 +67,10 @@ public class ReleaseTrack: BaseEntity, Decodable
     // RelationShips
     @NSManaged @objc(releases) public private(set) var _releases: NSOrderedSet?
     @NSManaged public private(set) var storeApp: StoreApp?
-    @NSManaged public private(set) var installedApp: InstalledApp?
+    @NSManaged public private(set) var installedApps: Set<InstalledApp>
+    @objc public var installedApp: InstalledApp? {
+        installedApps.first { $0.libraryIdentifier == TVLibrary.currentIdentifier && !$0.isDeleted }
+    }
     
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case track

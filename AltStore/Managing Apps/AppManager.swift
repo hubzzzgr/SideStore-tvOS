@@ -79,7 +79,7 @@ final class AppManager: ObservableObject, @unchecked Sendable
 
         do {
             let (activeBundleIDs, activeSignatures, altStoreApp) = try await dbBackgroundContext.perform {
-                let installedApps = InstalledApp.all(in: dbBackgroundContext)
+                let installedApps = try InstalledApp.allLibraries(in: dbBackgroundContext)
                 var altStore: InstalledApp?
 
                 // Remote apps are never inferred from iPhone UTI registrations.

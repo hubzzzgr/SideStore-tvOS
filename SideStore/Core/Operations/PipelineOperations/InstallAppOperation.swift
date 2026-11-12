@@ -270,6 +270,7 @@ final class InstallAppOperation: BasePipelineOperation<InstallAppOperationContex
                     installedApp.hasAlternateIcon = true
                     guard alternateIconURL != installedApp.alternateIconURL else { break }
                     do {
+                        try FileManager.default.createDirectory(at: installedApp.alternateIconURL.deletingLastPathComponent(), withIntermediateDirectories: true)
                         try FileManager.default.copyItem(
                             at: alternateIconURL,
                             to: installedApp.alternateIconURL,

@@ -39,6 +39,8 @@ extension InstalledApp
 
 public protocol InstalledAppProtocol: Fetchable
 {
+    var libraryIdentifier: String? { get }
+    var usesLegacyStorage: Bool { get }
     var name: String { get }
     var bundleIdentifier: String { get }
     var resignedBundleIdentifier: String { get }
@@ -67,7 +69,9 @@ public extension InstalledAppProtocol {
     var appBundleFingerprint: String? { nil }
     
     var directoryURL: URL {
-        return InstalledApp.appsDirectoryURL.appendingPathComponent(self.resignedBundleIdentifier)
+        return TVLibrary.directory(in: InstalledApp.appsDirectoryURL,
+                                   library: usesLegacyStorage ? nil : libraryIdentifier,
+                                   bundleID: self.resignedBundleIdentifier)
     }
     
     var fileURL: URL {
@@ -87,7 +91,8 @@ public extension InstalledAppProtocol {
     var alternateIconURL: URL {
         let bundleID = self.customBundleIdentifier ?? self.resignedBundleIdentifier
         let appSupport = FileManager.default.applicationSupportDirectory
-        return appSupport.appendingPathComponent("AppIcons", isDirectory: true).appendingPathComponent("\(bundleID).png")
+        return TVLibrary.directory(in: appSupport.appendingPathComponent("AppIcons", isDirectory: true),
+                                   library: usesLegacyStorage ? nil : libraryIdentifier, bundleID: "\(bundleID).png")
     }
     
     var signingCertificateURL: URL {
@@ -125,6 +130,14 @@ public extension InstalledAppProtocol {
 @objc(InstalledApp)
 public class InstalledApp: BaseEntity, InstalledAppProtocol
 {
+    @NSManaged public var libraryIdentifier: String?
+    @NSManaged public var usesLegacyStorage: Bool
+    public override class var fetchScopePredicate: NSPredicate? { TVLibrary.predicate() }
+
+    /// Maintenance must retain payloads referenced by every TV, including offline libraries.
+    public static func allLibraries(in context: NSManagedObjectContext) throws -> [InstalledApp] {
+        try context.fetch(NSFetchRequest<InstalledApp>(entityName: "InstalledApp"))
+    }
     /* Properties */
     @NSManaged public var name: String
     @NSManaged public var bundleIdentifier: String
@@ -258,6 +271,8 @@ public class InstalledApp: BaseEntity, InstalledAppProtocol
     public init(resignedAppBundle: ALTApplication, originalBundleIdentifier: String, certificateSerialNumber: String?, storeBuildVersion: String?, context: NSManagedObjectContext) throws
     {
         super.init(entity: InstalledApp.entity(), insertInto: context)
+        self.libraryIdentifier = TVLibrary.currentIdentifier
+        self.usesLegacyStorage = false
         
         self.bundleIdentifier = originalBundleIdentifier
         
@@ -359,14 +374,16 @@ public extension InstalledApp
 {
     @nonobjc class func fetchRequest() -> NSFetchRequest<InstalledApp>
     {
-        return NSFetchRequest<InstalledApp>(entityName: "InstalledApp")
+        let request = NSFetchRequest<InstalledApp>(entityName: "InstalledApp")
+        request.predicate = TVLibrary.predicate()
+        return request
     }
     
     class func supportedUpdatesFetchRequest() -> NSFetchRequest<InstalledApp> 
     {
         let fetchRequest = InstalledApp.fetchRequest() as NSFetchRequest<InstalledApp>
         
-        fetchRequest.predicate = NSPredicate(format: "%K == YES", #keyPath(InstalledApp.hasUpdate))
+        fetchRequest.predicate = TVLibrary.predicate(NSPredicate(format: "%K == YES", #keyPath(InstalledApp.hasUpdate)))
         
         return fetchRequest
     }
@@ -374,7 +391,7 @@ public extension InstalledApp
     class func activeAppsFetchRequest() -> NSFetchRequest<InstalledApp>
     {
         let fetchRequest = InstalledApp.fetchRequest() as NSFetchRequest<InstalledApp>
-        fetchRequest.predicate = NSPredicate(format: "%K == YES", #keyPath(InstalledApp.isActive))
+        fetchRequest.predicate = TVLibrary.predicate(NSPredicate(format: "%K == YES", #keyPath(InstalledApp.isActive)))
         debugLog("Active Apps Fetch Request: \(String(describing: fetchRequest.predicate))")
         return fetchRequest
     }

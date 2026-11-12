@@ -147,7 +147,7 @@ struct AppleTVSetupView: View {
                         Text(model.selectedID == device.id ? "Selected Apple TV" : "Saved pairing").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    SwiftUI.Button("Connect") { perform { try model.select(device.id); _ = try await model.ready(force: true) } }
+                    SwiftUI.Button("Connect") { perform { try await model.selectLibrary(device.id); _ = try await model.ready(force: true) } }
                         .buttonStyle(.bordered).disabled(busy)
                     Menu {
                         SwiftUI.Button("Export Pairing File", systemImage: "square.and.arrow.up") { exportPairing(device.id) }

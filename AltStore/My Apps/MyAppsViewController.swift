@@ -59,7 +59,6 @@ class MyAppsViewController: UICollectionViewController
     private var isCheckingForUpdates = false
     private var didChangeActiveApps = false
     private var previousInactiveAppsCount = 0
-    private var statusDotView: UIView?
     
     private var _imagePickerInstalledApp: InstalledApp?
     private var _viewDidAppear = false
@@ -92,6 +91,10 @@ class MyAppsViewController: UICollectionViewController
     override func viewDidLoad()
     {
         super.viewDidLoad()
+        updateLibraryPicker()
+        NotificationCenter.default.publisher(for: TVLibrary.didChange)
+            .receive(on: DispatchQueue.main).sink { [weak self] _ in self?.reloadLibrary() }
+            .store(in: &iconSubscriptions)
         transferStatusSubscription = AppleTVManager.shared.$transferStatus
             .receive(on: DispatchQueue.main)
             .sink { [weak self] status in self?.navigationItem.prompt = status }
@@ -229,87 +232,67 @@ class MyAppsViewController: UICollectionViewController
         AppleTVManager.shared.refreshIcons(requests)
     }
     
-    private func findView(in view: UIView, where predicate: (UIView) -> Bool) -> UIView? {
-        if predicate(view) {
-            return view
-        }
-        for subview in view.subviews {
-            if let found = findView(in: subview, where: predicate) {
-                return found
-            }
-        }
-        return nil
+    private var libraryButton: UIButton?
+    private var libraryReady = false
+
+    private func updateStatusDot(isReady: Bool) {
+        libraryReady = isReady
+        updateLibraryPicker()
     }
 
-    private func updateStatusDot(isReady: Bool)
-    {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            
-            guard let navigationBar = self.navigationController?.navigationBar else { return }
-            
-            guard let largeTitleView = self.findView(in: navigationBar, where: { NSStringFromClass(type(of: $0)).contains("LargeTitle") }) else {
-                return
-            }
-            
-            let targetColor: UIColor = isReady ? .systemGreen : .systemRed
-            
-            let updateColorClosure: () -> Void = { [weak self] in
-                guard let self = self, let existingDot = self.statusDotView else { return }
-                
-                if existingDot.backgroundColor != targetColor {
-                    UIView.animate(withDuration: 0.25, delay: 0.0, options: [.beginFromCurrentState, .curveEaseInOut]) {
-                        existingDot.backgroundColor = targetColor
-                        existingDot.transform = CGAffineTransform(scaleX: 1.25, y: 1.25)
-                    } completion: { _ in
-                        UIView.animate(withDuration: 0.15, delay: 0.0, options: .curveEaseInOut) {
-                            existingDot.transform = .identity
-                        }
+    private func updateLibraryPicker() {
+        let manager = AppleTVManager.shared
+        let name = manager.saved.first { $0.id == manager.selectedID }?.name ?? "Choose Apple TV"
+        let button = libraryButton ?? UIButton(type: .system)
+        var configuration = UIButton.Configuration.plain()
+        configuration.title = name
+        configuration.image = UIImage(systemName: "circle.fill")?.withTintColor(libraryReady ? .systemGreen : .systemRed, renderingMode: .alwaysOriginal)
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 8)
+        configuration.imagePadding = 7
+        button.configuration = configuration
+        button.accessibilityLabel = "\(name), \(libraryReady ? "connected" : "disconnected"). Select Apple TV library."
+        button.menu = UIMenu(title: "Apple TV Libraries", children: manager.saved.map { device in
+            UIAction(title: device.name, image: UIImage(systemName: "appletv"), state: device.id == manager.selectedID ? .on : .off) { [weak self] _ in
+                Task { @MainActor in
+                    do {
+                        try await manager.selectLibrary(device.id)
+                        _ = try await manager.ready(force: true)
                     }
+                    catch { self?.presentLibraryError(error) }
                 }
             }
-            
-            // If the dot is already created and attached to largeTitleView, just update color O(1)
-            if let existingDot = self.statusDotView, existingDot.superview == largeTitleView {
-                updateColorClosure()
-                return
-            }
-            
-            self.statusDotView?.removeFromSuperview()
-            
-            let titleText = NSLocalizedString("My Apps", comment: "")
-            let font = UIFont.systemFont(ofSize: 34, weight: .bold)
-            let textWidth = titleText.size(withAttributes: [.font: font]).width
-            let leftMargin: CGFloat = 20
-            
-            let dot = UIView()
-            dot.translatesAutoresizingMaskIntoConstraints = false
-            dot.layer.cornerRadius = 3.5
-            dot.transform = CGAffineTransform(scaleX: 0.01, y: 0.01)
-            dot.alpha = 0.0
-            largeTitleView.addSubview(dot)
-            self.statusDotView = dot
-            
-            NSLayoutConstraint.activate([
-                dot.leadingAnchor.constraint(equalTo: largeTitleView.leadingAnchor, constant: leftMargin + textWidth - 2),
-                dot.bottomAnchor.constraint(equalTo: largeTitleView.bottomAnchor, constant: -32),
-                dot.widthAnchor.constraint(equalToConstant: 7),
-                dot.heightAnchor.constraint(equalToConstant: 7)
-            ])
-            
-            let animateEntranceClosure: () -> Void = {
-                dot.backgroundColor = targetColor
-                UIView.animate(withDuration: 0.35, delay: 0.1, usingSpringWithDamping: 0.6, initialSpringVelocity: 0.8, options: [], animations: {
-                    dot.transform = .identity
-                    dot.alpha = 1.0
-                }, completion: nil)
-            }
-            
-            animateEntranceClosure()
-            return
-        }
+        })
+        button.showsMenuAsPrimaryAction = true
+        navigationItem.titleView = button
+        libraryButton = button
     }
-    
+
+    private func presentLibraryError(_ error: Error) {
+        let alert = UIAlertController(title: "Apple TV Library", message: error.localizedDescription, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
+    private func reloadLibrary() {
+        libraryReady = false
+        let sources = [updatesDataSource, activeAppsDataSource, inactiveAppsDataSource]
+        let predicates = [InstalledApp.supportedUpdatesFetchRequest().predicate!,
+                          InstalledApp.activeAppsFetchRequest().predicate!,
+                          TVLibrary.predicate(NSPredicate(format: "isActive == NO"))]
+        for (source, predicate) in zip(sources, predicates) {
+            source.prefetchItemCache.removeAllObjects()
+            source.fetchedResultsController.fetchRequest.predicate = predicate
+            do { try source.fetchedResultsController.performFetch() }
+            catch { presentLibraryError(error) }
+        }
+        cachedUpdateSizes.removeAll()
+        expandedAppUpdates.removeAll()
+        updateLibraryPicker()
+        collectionView.reloadData()
+        update()
+        refreshMissingTVIcons()
+    }
+
     override func prepare(for segue: UIStoryboardSegue, sender: Any?)
     {
         guard let identifier = segue.identifier else { return }
@@ -579,7 +562,7 @@ private extension MyAppsViewController
     {
         let fetchRequest = InstalledApp.fetchRequest() as NSFetchRequest<InstalledApp>
         fetchRequest.relationshipKeyPathsForPrefetching = [#keyPath(InstalledApp.storeApp)]
-        fetchRequest.predicate = NSPredicate(format: "%K == NO", #keyPath(InstalledApp.isActive))
+        fetchRequest.predicate = TVLibrary.predicate(NSPredicate(format: "%K == NO", #keyPath(InstalledApp.isActive)))
         fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \InstalledApp.expirationDate, ascending: true),
                                         NSSortDescriptor(keyPath: \InstalledApp.refreshedDate, ascending: false),
                                         NSSortDescriptor(keyPath: \InstalledApp.name, ascending: true)]

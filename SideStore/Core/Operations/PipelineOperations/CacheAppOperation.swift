@@ -85,7 +85,7 @@ final class CacheAppOperation: BasePipelineOperation<InstallAppOperationContext,
                 do {
                     let resourceValues = try appDirectory.resourceValues(forKeys: [.isDirectoryKey, .nameKey])
                     guard let isDirectory = resourceValues.isDirectory, let bundleID = resourceValues.name else { continue }
-                    if bundleID == "Payloads" { continue }
+                    if bundleID == "Payloads" || bundleID == "Libraries" { continue }
                     
                     if isDirectory && !activeBundleIDs.contains(bundleID) && !isActivelyManaging(bundleID) {
                         SideStore.debugLog("[CacheAppOperation] DELETING CACHED APP: \(bundleID)")

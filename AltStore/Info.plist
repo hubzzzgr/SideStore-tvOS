@@ -95,13 +95,14 @@
 	</dict>
 	<key>NSBonjourServices</key>
     <array>
+        <string>_sidetvstore._tcp</string>
         <string>_remotepairing._tcp</string>
         <string>_remotepairing-manual-pairing._tcp</string>
         <string>_airplay._tcp</string>
         <string>_companion-link._tcp</string>
     </array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>SideStore TV uses your local network to discover, pair with, and install apps on your Apple TV.</string>
+	<string>SideTVstore discovers and manages Apple TVs and shares selected files with TVcontainer on your local network.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>RefreshAllIntent</string>

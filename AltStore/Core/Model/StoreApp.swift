@@ -214,7 +214,10 @@ public class StoreApp: BaseEntity, Decodable
     @NSManaged public private(set) var versionDescription: String?
     
     /* Relationships */
-    @NSManaged public var installedApp: InstalledApp?
+    @NSManaged public var installedApps: Set<InstalledApp>
+    @objc public var installedApp: InstalledApp? {
+        installedApps.first { $0.libraryIdentifier == TVLibrary.currentIdentifier && !$0.isDeleted }
+    }
     @NSManaged public var newsItems: Set<NewsItem>
     
     @NSManaged @objc(source) public var _source: Source?

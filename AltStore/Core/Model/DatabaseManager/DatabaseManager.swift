@@ -205,11 +205,24 @@ public class DatabaseManager: @unchecked Sendable
         
         let context = self.persistentContainer.newBackgroundContext()
         try await context.perform {
-            let source = Source.first(satisfying: NSPredicate(format: "%K == %@", #keyPath(Source.identifier), Source.altStoreIdentifier), in: context) ?? Source.makeAltStoreSource(in: context)
+            // The old library keeps its files in place; only ownership is migrated.
+            let legacyOwner = ["AppleTV.managedTarget", "AppleTV.selected"].compactMap {
+                UserDefaults.standard.string(forKey: $0).flatMap(UUID.init(uuidString:))?.uuidString
+            }.first ?? TVLibrary.unassignedIdentifier
+            for app in try InstalledApp.allLibraries(in: context) where app.libraryIdentifier == nil {
+                app.libraryIdentifier = legacyOwner
+            }
+            if UserDefaults.standard.string(forKey: "AppleTV.legacyLibrary") == nil {
+                UserDefaults.standard.set(legacyOwner, forKey: "AppleTV.legacyLibrary")
+            }
+            let source = Source.first(satisfying: NSPredicate(format: "%K == %@", #keyPath(Source.identifier), Source.altStoreIdentifier), in: context)
+                ?? Source.first(satisfying: NSPredicate(format: "%K == %@", #keyPath(Source.identifier), "sidestore.io/apps-v2.json"), in: context)
+                ?? Source.makeAltStoreSource(in: context)
             try source.setSourceURL(Source.altStoreSourceURL)
             let predicate = NSPredicate(format: "%K == %@", #keyPath(InstalledApp.bundleIdentifier), StoreApp.altstoreAppID)
             for oldController in InstalledApp.all(satisfying: predicate, in: context) { context.delete(oldController) }
             try context.save()
+            UserDefaults.standard.removeObject(forKey: "AppleTV.managedTarget")
         }
         
         await self.updateFeaturedSortIDs()

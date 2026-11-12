@@ -27,7 +27,7 @@ public enum AppConstants {
     public enum Sources {
         public static let fetchTimeout: TimeInterval  = 3.0
         public static let defaultSourcesURL           = URL(string: "https://sidestore.io/default-sources")!
-        public static let sideStoreCommunitySourceURL = URL(string: "https://sidestore.io/apps-v2.json/")!
+        public static let sideStoreCommunitySourceURL = URL(string: "https://raw.githubusercontent.com/hubzzzgr/sideloading-source/main/source.json")!
         public static let sideStoreFallbackIconURL    = URL(string: "https://sidestore.io/apps-v2.json/apps/sidestore/icon.png")!
         public static let sideStoreWebsite            = URL(string: "https://sidestore.io")!
     }
