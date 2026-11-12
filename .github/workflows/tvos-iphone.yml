@@ -50,10 +50,6 @@ jobs:
           set -o pipefail
           export TVPAIR_OPENSSL_CLI="$(brew --prefix openssl@3)/bin/openssl"
           swift test --package-path Packages/TVPairCore 2>&1 | tee artifacts/protocol-tests.log
-      - name: TVcontainer request and range checks
-        run: |
-          set -o pipefail
-          swift test --package-path Packages/TVPairCore --filter TVContainerHTTPTests 2>&1 | tee artifacts/tvcontainer-tests.log
       - name: TV library migration and isolation checks
         run: |
           set -euo pipefail

@@ -76,7 +76,6 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool
     {
-        TVContainerServerModel.shared.setEnabled(false)
         // navigation bar buttons spacing is too much (so hack it to use minimal spacing)
         // this is swift-5 specific behavior and might change
         // https://stackoverflow.com/a/64988363/11971304

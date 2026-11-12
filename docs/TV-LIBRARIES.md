@@ -32,5 +32,3 @@ TVs, shared catalog/track relationships, scoped generic and registered-object
 lookups, isolated removal, and distinct cache paths. Physical multi-TV update,
 refresh, removal, and migration still need validation. Prior single-TV testing
 does not establish these new behaviors.
-
-For the temporary file server, see [the TVcontainer API](TVCONTAINER-SERVER.md).

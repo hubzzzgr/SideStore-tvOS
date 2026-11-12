@@ -26,7 +26,6 @@ extension SettingsViewController
     {
         case signIn
         case account
-        case tvcontainer
         case patreon
         case display
         case appRefresh
@@ -500,13 +499,6 @@ private extension SettingsViewController
                 settingsHeaderFooterView.secondaryLabel.text = NSLocalizedString("Sign in with your Apple ID to download apps from SideStore.", comment: "")
             }
             
-        case .tvcontainer:
-            if isHeader {
-                settingsHeaderFooterView.primaryLabel.text = NSLocalizedString("TVcontainer", comment: "")
-            } else {
-                settingsHeaderFooterView.secondaryLabel.text = NSLocalizedString("Send IPAs and P12 certificates directly to TVContainer", comment: "")
-            }
-
         case .patreon:
             if isHeader
             {
@@ -953,7 +945,6 @@ extension SettingsViewController
     
     override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat
     {
-        if Section.allCases[indexPath.section] == .tvcontainer { return 51 }
         if Section.allCases[indexPath.section] == .account && indexPath.row == 3 {
             return AccountVerificationRow.preferredHeight
         }
@@ -1067,7 +1058,7 @@ extension SettingsViewController
         case _ where isSectionHidden(section): return nil
         case .signIn where self.activeTeam != nil: return nil
         case .account where self.activeTeam == nil: return nil
-        case .signIn, .account, .tvcontainer, .patreon, .display, .appRefresh, .techyThings, .credits, .advancedSettings, .betaTesting, .diagnostics /* ,.macDirtyCow */:
+        case .signIn, .account, .patreon, .display, .appRefresh, .techyThings, .credits, .advancedSettings, .betaTesting, .diagnostics /* ,.macDirtyCow */:
             let headerView = tableView.dequeueReusableHeaderFooterView(withIdentifier: "HeaderFooterView") as! SettingsHeaderFooterView
             self.prepare(headerView, for: section, isHeader: true)
             return headerView
@@ -1083,8 +1074,8 @@ extension SettingsViewController
         {
         case _ where isSectionHidden(section): return nil
         case .signIn where self.activeTeam != nil: return nil
-        // case .signIn, .tvcontainer, .patreon, .display, .appRefresh, .techyThings, .macDirtyCow:
-        case .signIn, .tvcontainer, .patreon, .display, .appRefresh, .techyThings, .betaTesting:
+        // case .signIn, .patreon, .display, .appRefresh, .techyThings, .macDirtyCow:
+        case .signIn, .patreon, .display, .appRefresh, .techyThings, .betaTesting:
             let footerView = tableView.dequeueReusableHeaderFooterView(withIdentifier: "HeaderFooterView") as! SettingsHeaderFooterView
             self.prepare(footerView, for: section, isHeader: false)
             return footerView
@@ -1101,7 +1092,7 @@ extension SettingsViewController
         case _ where isSectionHidden(section): return 1.0
         case .signIn where self.activeTeam != nil: return 1.0
         case .account where self.activeTeam == nil: return 1.0
-        case .signIn, .account, .tvcontainer, .patreon, .display, .appRefresh, .techyThings, .credits, .advancedSettings, .betaTesting, .diagnostics:
+        case .signIn, .account, .patreon, .display, .appRefresh, .techyThings, .credits, .advancedSettings, .betaTesting, .diagnostics:
             let height = self.preferredHeight(for: self.prototypeHeaderFooterView, in: section, isHeader: true)
             return height
             
@@ -1117,8 +1108,8 @@ extension SettingsViewController
         case _ where isSectionHidden(section): return 1.0
         case .signIn where self.activeTeam != nil: return 1.0
         case .account where self.activeTeam == nil: return 1.0            
-        // case .signIn, .tvcontainer, .patreon, .display, .appRefresh, .techyThings, .macDirtyCow:
-        case .signIn, .tvcontainer, .patreon, .display, .appRefresh, .techyThings, .betaTesting:
+        // case .signIn, .patreon, .display, .appRefresh, .techyThings, .macDirtyCow:
+        case .signIn, .patreon, .display, .appRefresh, .techyThings, .betaTesting:
             let height = self.preferredHeight(for: self.prototypeHeaderFooterView, in: section, isHeader: false)
             return height
             
@@ -1135,12 +1126,6 @@ extension SettingsViewController
         verboseLog("[SettingsVC] didSelectRowAt: section \(section) (index \(indexPath.section)), row \(indexPath.row)")
         switch section
         {
-        case .tvcontainer:
-            let controller = UIHostingController(rootView: TVContainerServerView())
-            controller.view.backgroundColor = .settingsBackground
-            navigationController?.pushViewController(controller, animated: true)
-            tableView.deselectRow(at: indexPath, animated: true)
-
         case .signIn: self.signIn()
         case .account:
             if indexPath.row == 3 {
