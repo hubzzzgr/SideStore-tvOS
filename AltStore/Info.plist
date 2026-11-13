@@ -99,9 +99,10 @@
         <string>_remotepairing-manual-pairing._tcp</string>
         <string>_airplay._tcp</string>
         <string>_companion-link._tcp</string>
+        <string>_tvcontainer._tcp</string>
     </array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>SideTVstore discovers, pairs with, and manages Apple TVs on your local network.</string>
+	<string>SideTVstore discovers, pairs with, and manages Apple TVs, and sends apps and signing certificates to paired TVContainer launchers on your local network.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>RefreshAllIntent</string>

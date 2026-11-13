@@ -55,6 +55,9 @@ public enum InstallAppDialog {
             alertController.addAction(UIAlertAction(title: NSLocalizedString("Choose from Files", comment: ""), style: .default) { _ in
                 onChooseFiles()
             })
+            alertController.addAction(UIAlertAction(title: "Send to TVContainer", style: .default) { _ in
+                TVContainerPresentation.open(from: presentingVC)
+            })
             #else
             let alertController = UIAlertController(
                 title: NSLocalizedString("Install App", comment: ""),
@@ -140,6 +143,7 @@ public enum InstallAppDialog {
         self.presentConfirmation(
             message: message,
             from: presentingViewController,
+            transferIPA: ipaURL.isFileURL ? ipaURL : nil,
             onConfirm: onConfirm,
             onCancel: onCancel
         )
@@ -178,6 +182,7 @@ public enum InstallAppDialog {
     private static func presentConfirmation(
         message: String,
         from presentingViewController: UIViewController?,
+        transferIPA: URL? = nil,
         onConfirm: @escaping () -> Void,
         onCancel: @escaping () -> Void
     ) {
@@ -201,6 +206,13 @@ public enum InstallAppDialog {
         alert.addAction(UIAlertAction(title: NSLocalizedString("Install", comment: ""), style: .default) { _ in
             onConfirm()
         })
+        #if !os(tvOS)
+        if let transferIPA {
+            alert.addAction(UIAlertAction(title: "Send to TVContainer", style: .default) { _ in
+                TVContainerPresentation.open(from: presentingVC, ipa: transferIPA)
+            })
+        }
+        #endif
         alert.addAction(UIAlertAction(title: NSLocalizedString("Cancel", comment: ""), style: .cancel) { _ in
             onCancel()
         })

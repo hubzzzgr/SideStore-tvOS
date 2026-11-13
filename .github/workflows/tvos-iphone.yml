@@ -50,6 +50,11 @@ jobs:
           set -o pipefail
           export TVPAIR_OPENSSL_CLI="$(brew --prefix openssl@3)/bin/openssl"
           swift test --package-path Packages/TVPairCore 2>&1 | tee artifacts/protocol-tests.log
+      - name: TVContainer transfer tests
+        if: ${{ inputs.skip_protocol_tests }}
+        run: |
+          set -o pipefail
+          swift test --package-path Packages/TVPairCore --filter TVContainer 2>&1 | tee artifacts/tvcontainer-tests.log
       - name: TV library migration and isolation checks
         run: |
           set -euo pipefail

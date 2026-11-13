@@ -15,4 +15,7 @@ int tvp_tls_write(tvp_tls_engine *engine, const uint8_t *bytes, size_t length, s
 int tvp_tls_read(tvp_tls_engine *engine, uint8_t *bytes, size_t capacity, size_t *read_count);
 uint16_t tvp_tls_cipher(tvp_tls_engine *engine);
 int32_t tvp_tls_error(tvp_tls_engine *engine);
+// Independent local-network identity; never a developer signing certificate.
+int tvp_container_identity(const char *password, uint8_t **output, size_t *length);
+void tvp_container_identity_free(uint8_t *output, size_t length);
 #endif
