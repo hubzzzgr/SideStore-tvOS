@@ -109,6 +109,7 @@ public enum TVContainerWire {
         try await withTaskCancellationHandler {
             do {
                 try Task.checkCancellation()
+                guard timeout > 0, responseTimeout > 0 else { throw TVPairError.timeout }
                 let name = filename ?? file.lastPathComponent
                 let size = try validate(file: file, filename: name, action: action)
                 let handle = try FileHandle(forReadingFrom: file)

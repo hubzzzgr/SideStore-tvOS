@@ -37,7 +37,6 @@ final class TVContainerDiscovery: ObservableObject {
                         let value: String
                         switch record.getEntry(for: key) {
                         case let .string(string): value = string
-                        case let .data(data): value = String(data: data, encoding: .utf8) ?? ""
                         default: value = ""
                         }
                         return String(String.UnicodeScalarView(value.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.prefix(200)))

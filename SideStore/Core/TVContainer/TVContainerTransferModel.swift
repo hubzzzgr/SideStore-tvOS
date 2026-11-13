@@ -134,7 +134,7 @@ final class TVContainerTransferModel: ObservableObject {
         let token = begin("Connecting securely… Approve pairing on both devices if asked.")
         operation = Task {
             do {
-                let stream = try await authenticatedConnection(device)
+                let stream = try await authenticatedConnection(device, token: token)
                 defer { stream.cancel() }
                 guard generation == token else { return }
                 selectedPin = stream.peerFingerprint
@@ -181,7 +181,7 @@ final class TVContainerTransferModel: ObservableObject {
         }
         do {
             try TVContainerWire.validate(file: file.url, filename: file.name, action: action)
-            let stream = try await authenticatedConnection(device)
+            let stream = try await authenticatedConnection(device, token: token)
             defer { stream.cancel() }
             try Task.checkCancellation()
             guard generation == token else { return }
@@ -218,22 +218,24 @@ final class TVContainerTransferModel: ObservableObject {
         guard generation == token else { return }
         status = "Waiting for confirmation on Apple TV"
     }
-    private func authenticatedConnection(_ device: TVContainerDevice) async throws -> TVContainerTransport {
+    private func authenticatedConnection(_ device: TVContainerDevice, token: UUID) async throws -> TVContainerTransport {
         guard device.supported else { throw TVContainerFailure("This TVContainer protocol version is unsupported.") }
         let identity = try await TVContainerIdentityStore.shared.identity()
+        try Task.checkCancellation()
+        guard generation == token else { throw CancellationError() }
         phoneFingerprint = identity.fingerprint
         let stream = try TVContainerTransport(endpoint: device.endpoint, aliases: device.aliases, name: device.name,
             identity: identity, approve: { [weak self] tv, phone in
                 guard let self else { return false }
-                return await self.requestApproval(tv: tv, phone: phone)
+                return await self.requestApproval(tv: tv, phone: phone, token: token)
             })
         connection = stream
         try await stream.connect(timeout: 90)
         try Task.checkCancellation()
         return stream
     }
-    private func requestApproval(tv: String, phone: String) async -> Bool {
-        guard busy, !Task.isCancelled else { return false }
+    private func requestApproval(tv: String, phone: String, token: UUID) async -> Bool {
+        guard busy, generation == token, !Task.isCancelled else { return false }
         answerPairing(false)
         return await withCheckedContinuation { continuation in
             approval = continuation
