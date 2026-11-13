@@ -29,12 +29,18 @@ struct TVContainerTransferView: View {
         .navigationTitle("TVContainer").navigationBarTitleDisplayMode(.large)
         .task {
             model.open(initialIPA: initialIPA)
-            do { try await appleTV.load(); pairedTVID = appleTV.selectedID }
+            do {
+                try await appleTV.load()
+                pairedTVID = appleTV.selectedID
+                restorePort()
+            }
             catch { manualError = error.localizedDescription }
         }
         .onDisappear { model.close() }
         .onChange(of: scenePhase) { _, phase in if phase == .background { model.cancel() } }
-        .onChange(of: pairedTVID) { _, _ in target = nil; model.resetDestination() }
+        .onChange(of: pairedTVID) { _, _ in
+            target = nil; manualError = nil; model.resetDestination(); restorePort()
+        }
         .onChange(of: manualPort) { _, _ in target = nil; model.resetDestination() }
         .sheet(isPresented: $pickingIPA, onDismiss: {
             if let pickedURL { model.stage(pickedURL, sendTo: selected); self.pickedURL = nil }
@@ -96,9 +102,14 @@ struct TVContainerTransferView: View {
             }
             if let manualError { Text(manualError).font(.caption).foregroundStyle(.orange) }
         } header: { heading("PAIRED APPLE TV") } footer: {
-            Text("The address comes from your saved Apple TV pairing and is resolved again for each connection. Enter the current port shown in TVContainer's server settings; it is not saved. TVContainer still requires its own fingerprint approvals. Keep Local Network access enabled for LiveContainer. TVContainer's version and running status cannot be checked until you connect.")
+            Text("The address comes from your saved Apple TV pairing and is resolved again for each connection. The last port used for this TV is pre-filled; update it if TVContainer shows a different port. TVContainer still requires its own fingerprint approvals. Keep Local Network access enabled for LiveContainer. TVContainer's version and running status cannot be checked until you connect.")
                 .foregroundStyle(.white.opacity(0.7))
         }.listRowBackground(Color.white.opacity(0.15))
+    }
+
+    private func restorePort() {
+        guard let id = pairedTVID else { manualPort = ""; return }
+        manualPort = UserDefaults.standard.string(forKey: "TVContainer.lastPort.\(id.uuidString)") ?? ""
     }
 
     private func connectPairedTV() {
@@ -108,6 +119,9 @@ struct TVContainerTransferView: View {
         guard let port = UInt16(manualPort.trimmingCharacters(in: .whitespacesAndNewlines)), port > 0 else {
             manualError = "Enter TVContainer's current TCP port (1–65535), not the Apple TV pairing port."; return
         }
+        // Routing preference only, scoped to the saved TV rather than its name/IP.
+        // Remember valid attempts even if the TV is offline or pairing is declined.
+        UserDefaults.standard.set(String(port), forKey: "TVContainer.lastPort.\(id.uuidString)")
         let device = TVContainerDevice(pairingID: id, name: tv.name, port: port)
         manualError = nil; target = device
         model.connect(device)
