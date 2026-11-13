@@ -1,6 +1,7 @@
 import Foundation
 import TVPairCore
 import Combine
+import Network
 
 struct TVContainerStagedFile: Sendable {
     let url: URL
@@ -71,7 +72,7 @@ final class TVContainerTransferModel: ObservableObject {
         let phoneFingerprint: String
     }
     @Published var selectedID: String?
-    @Published private(set) var status = "Choose a TVContainer below."
+    @Published private(set) var status = "Choose a paired Apple TV and enter TVContainer's current port."
     @Published private(set) var busy = false
     @Published private(set) var completed: UInt64 = 0
     @Published private(set) var total: UInt64 = 0
@@ -129,7 +130,7 @@ final class TVContainerTransferModel: ObservableObject {
     }
 
     func connect(_ device: TVContainerDevice) {
-        guard !busy, device.supported else { return }
+        guard !busy else { return }
         selectedID = device.id; selectedPin = nil
         let token = begin("Connecting securely… Approve pairing on both devices if asked.")
         operation = Task {
@@ -219,12 +220,15 @@ final class TVContainerTransferModel: ObservableObject {
         status = "Waiting for confirmation on Apple TV"
     }
     private func authenticatedConnection(_ device: TVContainerDevice, token: UUID) async throws -> TVContainerTransport {
-        guard device.supported else { throw TVContainerFailure("This TVContainer protocol version is unsupported.") }
+        let host = try await AppleTVManager.shared.tvContainerHost(for: device.pairingID)
+        try Task.checkCancellation()
+        guard generation == token else { throw CancellationError() }
         let identity = try await TVContainerIdentityStore.shared.identity()
         try Task.checkCancellation()
         guard generation == token else { throw CancellationError() }
         phoneFingerprint = identity.fingerprint
-        let stream = try TVContainerTransport(endpoint: device.endpoint, aliases: device.aliases, name: device.name,
+        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: device.port)!)
+        let stream = try TVContainerTransport(endpoint: endpoint, aliases: device.aliases, name: device.name,
             identity: identity, approve: { [weak self] tv, phone in
                 guard let self else { return false }
                 return await self.requestApproval(tv: tv, phone: phone, token: token)
@@ -265,6 +269,11 @@ final class TVContainerTransferModel: ObservableObject {
         answerPairing(false)
         busy = false; operation = nil
         status = unknown ? "Outcome unknown — check TVContainer on Apple TV before retrying." : "Cancelled."
+    }
+    func resetDestination() {
+        guard !busy else { return }
+        selectedID = nil; selectedPin = nil; result = nil; error = nil
+        status = "Choose a paired Apple TV and enter TVContainer's current port."
     }
     func close() { cancel(); clearStaged() }
     private func finish(_ token: UUID) {

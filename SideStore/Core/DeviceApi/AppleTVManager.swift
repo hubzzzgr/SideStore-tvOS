@@ -69,6 +69,26 @@ final class AppleTVManager: ObservableObject {
         return try await vault.record(id: id).exportPlist()
     }
     func startDiscovery() { discovery.start() }
+    /// Resolve the saved TV's current LAN address without selecting a different
+    /// library or opening developer services. TVContainer authenticates separately.
+    func tvContainerHost(for id: UUID) async throws -> String {
+        let record = try await vault.record(id: id)
+        if !discovery.scanning { discovery.start() }
+        let deadline = Date().addingTimeInterval(2)
+        repeat {
+            try Task.checkCancellation()
+            if let host = discovery.devices.first(where: {
+                $0.service == .remotePairing && $0.endpoint != nil && AdvertisementIdentity.matches(record: record, identifier: $0.advertisedIdentifier, authTag: $0.authenticationTag)
+            })?.endpoint?.host { return host }
+            try await Task.sleep(for: .milliseconds(200))
+        } while Date() < deadline
+        // The transfer listener can remain available without developer services.
+        // A saved IP is only a routing hint: the separate TLS pin must still match.
+        guard let host = record.lastEndpoint?.host else {
+            throw OperationError.notReachable(reason: "No address is available for this paired Apple TV. Connect to it in the Apple TV tab to update its saved address, then retry.")
+        }
+        return host
+    }
     func select(_ id: UUID) throws {
         guard leases == 0, !busy, connecting == nil, !AppManager.shared.isActivelyManagingAnyApp else { throw TVInstallationError.busy }
         guard saved.contains(where: { $0.id == id }) else { throw OperationError.invalidParameters("Choose a saved Apple TV.") }

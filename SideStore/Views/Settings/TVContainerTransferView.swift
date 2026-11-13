@@ -6,22 +6,36 @@ import TVPairCore
 struct TVContainerTransferView: View {
     var initialIPA: URL? = nil
     @StateObject private var model = TVContainerTransferModel()
-    @StateObject private var discovery = TVContainerDiscovery()
+    @ObservedObject private var appleTV = AppleTVManager.shared
     @ObservedObject private var theme = ThemeManager.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var pickingIPA = false
     @State private var pickedURL: URL?
     @State private var certificateConsent = false
     @State private var forgetting: TVContainerIdentityStore.Pin?
+    @State private var manualPort = ""
+    @State private var pairedTVID: UUID?
+    @State private var target: TVContainerDevice?
+    @State private var manualError: String?
 
-    private var selected: TVContainerDevice? { discovery.devices.first { $0.id == model.selectedID && $0.supported } }
+    private var selected: TVContainerDevice? {
+        guard let target, target.id == model.selectedID,
+              appleTV.saved.contains(where: { $0.id == target.pairingID }) else { return nil }
+        return target
+    }
 
     var body: some View {
         menu
         .navigationTitle("TVContainer").navigationBarTitleDisplayMode(.large)
-        .task { model.open(initialIPA: initialIPA); discovery.start() }
-        .onDisappear { discovery.stop(); model.close() }
-        .onChange(of: scenePhase) { _, phase in if phase == .background { model.cancel(); discovery.stop() } else if phase == .active { discovery.start() } }
+        .task {
+            model.open(initialIPA: initialIPA)
+            do { try await appleTV.load(); pairedTVID = appleTV.selectedID }
+            catch { manualError = error.localizedDescription }
+        }
+        .onDisappear { model.close() }
+        .onChange(of: scenePhase) { _, phase in if phase == .background { model.cancel() } }
+        .onChange(of: pairedTVID) { _, _ in target = nil; model.resetDestination() }
+        .onChange(of: manualPort) { _, _ in target = nil; model.resetDestination() }
         .sheet(isPresented: $pickingIPA, onDismiss: {
             if let pickedURL { model.stage(pickedURL, sendTo: selected); self.pickedURL = nil }
         }) {
@@ -44,7 +58,7 @@ struct TVContainerTransferView: View {
     private var menu: some View {
         List {
             introduction
-            nearbyTVs
+            pairedConnection
             connectionSection
             sendingSection
             phoneSection
@@ -63,47 +77,49 @@ struct TVContainerTransferView: View {
         .listRowBackground(Color.white.opacity(0.15))
     }
 
-    private var nearbyTVs: some View {
+    private var pairedConnection: some View {
         Section {
-            ForEach(discovery.devices) { device in
-                SwiftUI.Button { model.connect(device) } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "appletv.fill").font(.title2)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(device.name).font(.system(size: 17, weight: .bold))
-                            Text("TVContainer \(device.appVersion.isEmpty ? "Unknown version" : device.appVersion)")
-                                .font(.subheadline).foregroundStyle(.white.opacity(0.7))
-                            if !device.supported {
-                                Text("Unsupported protocol: \(device.protocolVersion.isEmpty ? "not advertised" : String(reflecting: device.protocolVersion))")
-                                    .font(.caption).foregroundStyle(.orange)
-                            }
-                            // Bonjour names may be duplicated; the service endpoint
-                            // disambiguates rows but never authenticates the TV.
-                            Text(device.id).font(.caption2).foregroundStyle(.white.opacity(0.55)).lineLimit(2)
-                        }
-                        Spacer()
-                        Image(systemName: device.id == model.selectedID ? "checkmark.circle.fill" : "chevron.right")
-                    }.padding(.vertical, 4)
-                }.disabled(model.busy || !device.supported)
+            if appleTV.saved.isEmpty {
+                Text("Pair an Apple TV in the Apple TV tab first, then return here.")
+                    .font(.subheadline).foregroundStyle(.white.opacity(0.7))
+            } else {
+                Picker("Apple TV", selection: $pairedTVID) {
+                    Text("Choose a paired TV").tag(Optional<UUID>.none)
+                    ForEach(appleTV.saved) { tv in Text(tv.name).tag(Optional(tv.id)) }
+                }.disabled(model.busy)
+                TextField("Current TVContainer TCP port", text: $manualPort)
+                    .keyboardType(.numberPad).disabled(model.busy)
+                    .accessibilityLabel("Current TVContainer port")
+                SwiftUI.Button(action: connectPairedTV) {
+                    Label("Connect to TVContainer", systemImage: "appletv.fill").bold()
+                }.disabled(model.busy || pairedTVID == nil || manualPort.isEmpty)
             }
-            if discovery.devices.isEmpty {
-                Text(discovery.issue ?? "No TVContainers found. Enable the server on Apple TV, check that both devices share Wi-Fi, and allow Local Network access in iPhone Settings. Guest apps also need their host to permit _tvcontainer._tcp.")
-                    .font(.subheadline).foregroundStyle(.white.opacity(0.75))
-            } else if let issue = discovery.issue {
-                Text(issue).font(.subheadline)
-            }
-            SwiftUI.Button { discovery.start() } label: { Label("Scan Again", systemImage: "arrow.clockwise").bold() }
-                .disabled(model.busy)
-        } header: { heading("NEARBY APPLE TVS") }
-        .listRowBackground(Color.white.opacity(0.15))
+            if let manualError { Text(manualError).font(.caption).foregroundStyle(.orange) }
+        } header: { heading("PAIRED APPLE TV") } footer: {
+            Text("The address comes from your saved Apple TV pairing and is resolved again for each connection. Enter the current port shown in TVContainer's server settings; it is not saved. TVContainer still requires its own fingerprint approvals. Keep Local Network access enabled for LiveContainer. TVContainer's version and running status cannot be checked until you connect.")
+                .foregroundStyle(.white.opacity(0.7))
+        }.listRowBackground(Color.white.opacity(0.15))
+    }
+
+    private func connectPairedTV() {
+        guard let id = pairedTVID, let tv = appleTV.saved.first(where: { $0.id == id }) else {
+            manualError = "Choose an already paired Apple TV."; return
+        }
+        guard let port = UInt16(manualPort.trimmingCharacters(in: .whitespacesAndNewlines)), port > 0 else {
+            manualError = "Enter TVContainer's current TCP port (1–65535), not the Apple TV pairing port."; return
+        }
+        let device = TVContainerDevice(pairingID: id, name: tv.name, port: port)
+        manualError = nil; target = device
+        model.connect(device)
     }
 
     private var connectionSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
                 Text(model.status).font(.system(size: 17, weight: .semibold))
+                if let selected { Text(selected.name).font(.subheadline).foregroundStyle(.white.opacity(0.7)) }
                 if model.selectedID != nil && selected == nil && !model.busy {
-                    Text("The selected service is no longer available. Wait for it to appear again before sending.").font(.caption)
+                    Text("Choose a paired TV and connect using its current TVContainer port.").font(.caption)
                 }
                 if model.total > 0 {
                     ProgressView(value: Double(model.completed), total: Double(model.total)).tint(.white)
