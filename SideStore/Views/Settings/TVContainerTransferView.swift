@@ -103,10 +103,21 @@ struct TVContainerTransferView: View {
                 Text("Pair an Apple TV in the Apple TV tab first, then return here.")
                     .font(.subheadline).foregroundStyle(.white.opacity(0.7))
             } else {
-                Picker("Apple TV", selection: $pairedTVID) {
-                    Text("Choose a paired TV").tag(Optional<UUID>.none)
-                    ForEach(appleTV.saved) { tv in Text(tv.name).tag(Optional(tv.id)) }
+                Menu {
+                    ForEach(appleTV.saved) { tv in
+                        SwiftUI.Button { pairedTVID = tv.id } label: {
+                            if pairedTVID == tv.id { Label(tv.name, systemImage: "checkmark") }
+                            else { Text(tv.name) }
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Text(appleTV.saved.first(where: { $0.id == pairedTVID })?.name ?? "Choose a paired TV").bold()
+                        Spacer()
+                        Image(systemName: "chevron.down").font(.caption.bold())
+                    }
                 }.disabled(model.busy)
+                .accessibilityLabel("Choose a paired TV")
                 TextField("Current TVContainer TCP port", text: $manualPort)
                     .keyboardType(.numberPad).disabled(model.busy)
                     .accessibilityLabel("Current TVContainer port")
@@ -116,7 +127,7 @@ struct TVContainerTransferView: View {
             }
             if let manualError { Text(manualError).font(.caption).foregroundStyle(.orange) }
         } header: { heading("PAIRED APPLE TV") } footer: {
-            Text("The address comes from your saved Apple TV pairing and is resolved again for each connection. The last port used for this TV is pre-filled; update it if TVContainer shows a different port. The connection check closes when finished; TVContainer shows connected during a transfer. Keep Local Network access enabled for LiveContainer.")
+            Text("The address comes from your saved Apple TV pairing. The last port used for this TV is pre-filled; update it if TVContainer shows a different port. Connect keeps the secure connection open while this screen is in the foreground. TVContainer must support waiting for uploads without its old 30-second idle timeout. Keep Local Network access enabled for LiveContainer.")
                 .foregroundStyle(.white.opacity(0.7))
         }.listRowBackground(Color.white.opacity(0.15))
     }
@@ -158,6 +169,8 @@ struct TVContainerTransferView: View {
                 }
                 if model.busy {
                     SwiftUI.Button("Cancel", role: .cancel) { model.cancel() }.bold()
+                } else if model.connectionActive {
+                    SwiftUI.Button("Disconnect") { model.cancel() }.bold()
                 }
                 if let result = model.result {
                     Label(result.message, systemImage: result.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -179,7 +192,7 @@ struct TVContainerTransferView: View {
         } else if model.selectedPin != nil && model.error == nil && !model.busy {
             Label("Pairing verified", systemImage: "checkmark.circle.fill")
                 .font(.headline).foregroundStyle(.green)
-            Text("Reconnects securely when you send a file.")
+            Text("Disconnected. Connect again or send a file to reconnect.")
                 .font(.caption).foregroundStyle(.white.opacity(0.7))
         }
     }

@@ -67,7 +67,11 @@ final class TVContainerSecurityTests: XCTestCase {
                     return candidate == tv.fingerprint && client == phone.fingerprint
                 }
             try await transport.connect(timeout: 10)
-            let response = try await TVContainerWire.upload(file: file, filename: "Épisode.ipa", action: .uploadIPA, over: transport, responseTimeout: 10)
+            // Start the only reader while idle, then hand it to the writer.
+            // A second reader would steal part of the fragmented result frame.
+            let reader = Task { try await TVContainerWire.receiveResponse(from: transport, timeout: 10) }
+            try await Task.sleep(nanoseconds: 200_000_000)
+            let response = try await TVContainerWire.upload(file: file, filename: "Épisode.ipa", action: .uploadIPA, over: transport, responseTimeout: 10, responseTask: reader)
             XCTAssertEqual(response, TVContainerWire.Response(ok: true, message: "App installed in TVContainer."))
         }
         let approvals = await calls.count

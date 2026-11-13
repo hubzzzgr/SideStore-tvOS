@@ -88,6 +88,9 @@ final class TVContainerTransferModel: ObservableObject {
     private let staging = TVContainerStaging.shared
     private var operation: Task<Void, Never>?
     private var connection: TVContainerTransport?
+    private var responseTask: Task<TVContainerWire.Response, Error>?
+    private var idleMonitor: Task<Void, Never>?
+    private var connectionDeviceID: String?
     private var approval: CheckedContinuation<Bool, Never>?
     private var uploadStarted = false
     private var generation = UUID()
@@ -131,17 +134,17 @@ final class TVContainerTransferModel: ObservableObject {
 
     func connect(_ device: TVContainerDevice) {
         guard !busy else { return }
+        disconnectSession()
         selectedID = device.id; selectedPin = nil
         let token = begin("Connecting securely… Approve pairing on both devices if asked.")
         operation = Task {
             do {
-                let stream = try await authenticatedConnection(device, token: token)
-                defer { stream.cancel() }
+                let stream = try await session(device, token: token)
                 guard generation == token else { return }
                 selectedPin = stream.peerFingerprint
                 pins = try await TVContainerIdentityStore.shared.pins()
-                status = "Paired — ready to reconnect for a transfer."
-            } catch { if generation == token { self.error = connectionError(error); status = "Not connected." } }
+                status = "Connected securely. Ready to send."
+            } catch { if generation == token { disconnectSession(); self.error = connectionError(error); status = "Not connected." } }
             finish(token)
         }
     }
@@ -162,6 +165,7 @@ final class TVContainerTransferModel: ObservableObject {
                 let file = try await staging.certificate(active)
                 guard !Task.isCancelled, generation == token else { remove(file); return }
                 await runTransfer(file, action: .uploadP12, to: device, token: token)
+                await reconnectAfterResult(device, token: token)
             } catch { if generation == token { self.error = error.localizedDescription; status = "Certificate not sent." } }
             finish(token)
         }
@@ -171,6 +175,7 @@ final class TVContainerTransferModel: ObservableObject {
         let token = begin("Connecting securely…")
         operation = Task {
             await runTransfer(file, action: action, to: device, token: token)
+            await reconnectAfterResult(device, token: token)
             finish(token)
         }
     }
@@ -183,14 +188,15 @@ final class TVContainerTransferModel: ObservableObject {
         }
         do {
             try TVContainerWire.validate(file: file.url, filename: file.name, action: action)
-            let stream = try await authenticatedConnection(device, token: token)
-            defer { stream.cancel() }
+            let stream = try await session(device, token: token)
+            defer { if connection === stream { disconnectSession() } else { stream.cancel() } }
             try Task.checkCancellation()
             guard generation == token else { return }
             selectedPin = stream.peerFingerprint
             pins = try await TVContainerIdentityStore.shared.pins()
             uploadStarted = true; total = file.size; status = "Uploading \(file.name)…"
             let response = try await TVContainerWire.upload(file: file.url, filename: file.name, action: action, over: stream,
+                responseTask: responseTask,
                 progress: { [weak self] bytes, size in
                     await self?.updateProgress(bytes, total: size, token: token)
                 }, waiting: { [weak self] in
@@ -198,6 +204,7 @@ final class TVContainerTransferModel: ObservableObject {
                 })
             guard generation == token else { return }
             result = response
+            uploadStarted = false
             status = response.ok ? (action == .uploadIPA ? "Installation confirmed by TVContainer." : "Certificate import confirmed by TVContainer.") : "TVContainer declined the transfer."
             if response.ok, action == .uploadP12, let pin = stream.peerFingerprint { certificateSentPins.insert(pin) }
         } catch {
@@ -210,6 +217,46 @@ final class TVContainerTransferModel: ObservableObject {
                 self.error = connectionError(error)
             }
         }
+    }
+
+    private func session(_ device: TVContainerDevice, token: UUID) async throws -> TVContainerTransport {
+        if connectionActive, connectionDeviceID == device.id, let connection { return connection }
+        disconnectSession()
+        let stream = try await authenticatedConnection(device, token: token)
+        connectionDeviceID = device.id
+        // One reader owns the stream from idle through the final upload result.
+        // A graceful peer close is detected even before a file is selected.
+        let reader = Task { try await TVContainerWire.receiveResponse(from: stream, timeout: 7200) }
+        responseTask = reader
+        idleMonitor = Task { [weak self] in
+            let outcome = await reader.result
+            guard let self, self.connection === stream, !self.uploadStarted else { return }
+            self.disconnectSession()
+            switch outcome {
+            case let .success(reply): self.error = reply.ok ? "Unexpected response before an upload." : reply.message
+            case .failure: self.error = "TVContainer closed the connection. Reconnect to retry. Its receiver must allow idle authenticated connections to stay connected before sending a file."
+            }
+            if !self.busy { self.status = "Disconnected from TVContainer." }
+        }
+        return stream
+    }
+
+    private func reconnectAfterResult(_ device: TVContainerDevice, token: UUID) async {
+        // Reconnect only after a complete result, never retry an unknown upload.
+        guard generation == token, result != nil, !Task.isCancelled else { return }
+        do { _ = try await session(device, token: token) }
+        catch {
+            guard generation == token else { return }
+            disconnectSession()
+            self.error = "The transfer result above is final. The idle connection could not be restored: \(connectionError(error))"
+        }
+    }
+
+    private func disconnectSession() {
+        let stream = connection
+        connection = nil; connectionDeviceID = nil; connectionActive = false
+        stream?.cancel(); responseTask?.cancel(); responseTask = nil
+        idleMonitor?.cancel(); idleMonitor = nil
     }
 
     private func updateProgress(_ bytes: UInt64, total: UInt64, token: UUID) {
@@ -268,20 +315,22 @@ final class TVContainerTransferModel: ObservableObject {
     func cancel() {
         let unknown = uploadStarted
         generation = UUID()
-        operation?.cancel(); connection?.cancel(); connection = nil
+        operation?.cancel(); disconnectSession()
         answerPairing(false)
         busy = false; operation = nil; connectionActive = false
-        status = unknown ? "Outcome unknown — check TVContainer on Apple TV before retrying." : "Cancelled."
+        if result != nil { status = "Disconnected. The completed transfer result is shown below." }
+        else { status = unknown ? "Outcome unknown — check TVContainer on Apple TV before retrying." : "Cancelled / disconnected." }
     }
     func resetDestination() {
         guard !busy else { return }
+        generation = UUID(); disconnectSession()
         selectedID = nil; selectedPin = nil; result = nil; error = nil; connectionActive = false
         status = "Choose a paired Apple TV and enter TVContainer's current port."
     }
     func close() { cancel(); clearStaged() }
     private func finish(_ token: UUID) {
         guard generation == token else { return }
-        answerPairing(false); connection = nil; busy = false; operation = nil; connectionActive = false
+        answerPairing(false); busy = false; operation = nil
     }
     private func clearStaged() { if let staged { remove(staged) }; staged = nil }
     private func remove(_ file: TVContainerStagedFile) { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }

@@ -77,7 +77,7 @@ class MyAppsViewController: UICollectionViewController
         label.accessibilityTraits = .updatesFrequently
         return label
     }()
-    private var libraryTitleStack: UIStackView?
+    private var libraryTitleView: AppleTVLibraryTitleView?
     private var iconSubscriptions = Set<AnyCancellable>()
     
     // Cache
@@ -252,7 +252,6 @@ class MyAppsViewController: UICollectionViewController
         // views on newer iOS versions. Keep the byte counter next to the TV name.
         transferStatusLabel.text = status
         transferStatusLabel.isHidden = status?.isEmpty != false
-        libraryTitleStack?.invalidateIntrinsicContentSize()
         navigationItem.titleView?.setNeedsLayout()
     }
 
@@ -265,13 +264,28 @@ class MyAppsViewController: UICollectionViewController
         let manager = AppleTVManager.shared
         let name = manager.saved.first { $0.id == manager.selectedID }?.name ?? "Choose Apple TV"
         let button = libraryButton ?? UIButton(type: .system)
-        var configuration = UIButton.Configuration.plain()
+        var configuration: UIButton.Configuration
+        #if os(iOS)
+        if #available(iOS 26.0, *) { configuration = .glass() }
+        else { configuration = .tinted() }
+        #else
+        configuration = .tinted()
+        #endif
+        configuration.cornerStyle = .capsule
+        configuration.baseForegroundColor = .label
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+            var attributes = incoming
+            attributes.font = .systemFont(ofSize: 15, weight: .semibold)
+            return attributes
+        }
         configuration.title = name
+        configuration.titleLineBreakMode = .byTruncatingTail
         configuration.image = UIImage(systemName: "circle.fill")?.withTintColor(libraryReady ? .systemGreen : .systemRed, renderingMode: .alwaysOriginal)
         configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 8)
         configuration.imagePadding = 7
-        configuration.contentInsets = .zero
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 3, leading: 12, bottom: 3, trailing: 28)
         button.configuration = configuration
+        button.contentHorizontalAlignment = .leading
         button.accessibilityLabel = "\(name), \(libraryReady ? "connected" : "disconnected"). Select Apple TV library."
         button.menu = UIMenu(title: "Apple TV Libraries", children: manager.saved.map { device in
             UIAction(title: device.name, image: UIImage(systemName: "appletv"), state: device.id == manager.selectedID ? .on : .off) { [weak self] _ in
@@ -285,18 +299,8 @@ class MyAppsViewController: UICollectionViewController
             }
         })
         button.showsMenuAsPrimaryAction = true
-        let titleStack: UIStackView
-        if let libraryTitleStack {
-            titleStack = libraryTitleStack
-        } else {
-            titleStack = UIStackView(arrangedSubviews: [button, transferStatusLabel])
-            titleStack.axis = .vertical
-            titleStack.alignment = .fill
-            titleStack.spacing = 1
-            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 26).isActive = true
-            libraryTitleStack = titleStack
-        }
-        navigationItem.titleView = titleStack
+        if libraryTitleView == nil { libraryTitleView = AppleTVLibraryTitleView(button: button, statusLabel: transferStatusLabel) }
+        navigationItem.titleView = libraryTitleView
         libraryButton = button
     }
 

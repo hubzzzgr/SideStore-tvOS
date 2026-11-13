@@ -103,6 +103,7 @@ public enum TVContainerWire {
         over transport: any ByteTransport,
         timeout: TimeInterval = 1800,
         responseTimeout: TimeInterval = 3600,
+        responseTask: Task<Response, Error>? = nil,
         progress: @escaping @Sendable (UInt64, UInt64) async -> Void = { _, _ in },
         waiting: @escaping @Sendable () async -> Void = {}
     ) async throws -> Response {
@@ -126,7 +127,10 @@ public enum TVContainerWire {
                 defer { transport.cancel() }
                 return try await withThrowingTaskGroup(of: Event.self) { group in
                     group.addTask {
-                        do { return .response(.success(try await receiveResponse(from: transport, timeout: responseTimeout))) }
+                        do {
+                            if let responseTask { return .response(.success(try await responseTask.value)) }
+                            return .response(.success(try await receiveResponse(from: transport, timeout: responseTimeout)))
+                        }
                         catch { return .response(.failure(error)) }
                     }
                     group.addTask {
