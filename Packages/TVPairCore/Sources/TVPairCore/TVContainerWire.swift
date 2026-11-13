@@ -58,8 +58,14 @@ public enum TVContainerWire {
     }
 
     public static func receiveResponse(from transport: any ByteTransport, timeout: TimeInterval = 3600) async throws -> Response {
-        let deadline = Date().addingTimeInterval(timeout)
-        let prefix = Array(try await transport.readExactly(4, timeout: timeout))
+        let overallDeadline = Date().addingTimeInterval(timeout)
+        // Waiting for the first response byte includes idle time, native prompts,
+        // and installation. Once a frame starts it must complete promptly.
+        let first = try await transport.readExactly(1, timeout: timeout)
+        let deadline = min(overallDeadline, Date().addingTimeInterval(30))
+        guard deadline.timeIntervalSinceNow > 0 else { throw TVPairError.timeout }
+        let rest = try await transport.readExactly(3, timeout: deadline.timeIntervalSinceNow)
+        let prefix = Array(first + rest)
         guard prefix.count == 4 else { throw WireError.invalidFrame }
         let length = prefix.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
         guard length > 0, length <= UInt32(maximumHeaderSize) else { throw WireError.invalidFrame }
