@@ -84,6 +84,7 @@ final class TVContainerTransferModel: ObservableObject {
     @Published private(set) var staged: TVContainerStagedFile?
     @Published private(set) var certificateSentPins: Set<String> = []
     @Published private(set) var selectedPin: String?
+    @Published private(set) var connectionActive = false
     private let staging = TVContainerStaging.shared
     private var operation: Task<Void, Never>?
     private var connection: TVContainerTransport?
@@ -176,6 +177,7 @@ final class TVContainerTransferModel: ObservableObject {
 
     private func runTransfer(_ file: TVContainerStagedFile, action: TVContainerWire.Action, to device: TVContainerDevice, token: UUID) async {
         defer {
+            if generation == token { connectionActive = false }
             remove(file)
             if staged?.url == file.url { staged = nil }
         }
@@ -235,6 +237,8 @@ final class TVContainerTransferModel: ObservableObject {
         connection = stream
         try await stream.connect(timeout: 90)
         try Task.checkCancellation()
+        guard generation == token else { stream.cancel(); throw CancellationError() }
+        connectionActive = true
         return stream
     }
     private func requestApproval(tv: String, phone: String, token: UUID) async -> Bool {
@@ -266,18 +270,18 @@ final class TVContainerTransferModel: ObservableObject {
         generation = UUID()
         operation?.cancel(); connection?.cancel(); connection = nil
         answerPairing(false)
-        busy = false; operation = nil
+        busy = false; operation = nil; connectionActive = false
         status = unknown ? "Outcome unknown — check TVContainer on Apple TV before retrying." : "Cancelled."
     }
     func resetDestination() {
         guard !busy else { return }
-        selectedID = nil; selectedPin = nil; result = nil; error = nil
+        selectedID = nil; selectedPin = nil; result = nil; error = nil; connectionActive = false
         status = "Choose a paired Apple TV and enter TVContainer's current port."
     }
     func close() { cancel(); clearStaged() }
     private func finish(_ token: UUID) {
         guard generation == token else { return }
-        answerPairing(false); connection = nil; busy = false; operation = nil
+        answerPairing(false); connection = nil; busy = false; operation = nil; connectionActive = false
     }
     private func clearStaged() { if let staged { remove(staged) }; staged = nil }
     private func remove(_ file: TVContainerStagedFile) { try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent()) }

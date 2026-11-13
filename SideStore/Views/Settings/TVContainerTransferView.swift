@@ -17,6 +17,7 @@ struct TVContainerTransferView: View {
     @State private var pairedTVID: UUID?
     @State private var target: TVContainerDevice?
     @State private var manualError: String?
+    @State private var hideTLSFingerprints = true
 
     private var selected: TVContainerDevice? {
         guard let target, target.id == model.selectedID,
@@ -27,6 +28,9 @@ struct TVContainerTransferView: View {
     var body: some View {
         menu
         .navigationTitle("TVContainer").navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) { fingerprintToggle }
+        }
         .task {
             // A full-screen Files picker can make this view appear again.
             // Do not restore another TV/port over the in-progress selection.
@@ -140,6 +144,7 @@ struct TVContainerTransferView: View {
     private var connectionSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
+                connectionIndicator
                 Text(model.status).font(.system(size: 17, weight: .semibold))
                 if let selected { Text(selected.name).font(.subheadline).foregroundStyle(.white.opacity(0.7)) }
                 if model.selectedID != nil && selected == nil && !model.busy {
@@ -164,6 +169,19 @@ struct TVContainerTransferView: View {
             Text("After uploading, confirm Install or Import on Apple TV. TVContainer sends its final result after the operation finishes. Upload progress alone does not confirm installation.")
                 .foregroundStyle(.white.opacity(0.7))
         }.listRowBackground(Color.white.opacity(0.15))
+    }
+
+    @ViewBuilder
+    private var connectionIndicator: some View {
+        if model.connectionActive {
+            Label("Connected securely", systemImage: "checkmark.circle.fill")
+                .font(.headline).foregroundStyle(.green)
+        } else if model.selectedPin != nil && model.error == nil && !model.busy {
+            Label("Pairing verified", systemImage: "checkmark.circle.fill")
+                .font(.headline).foregroundStyle(.green)
+            Text("Reconnects securely when you send a file.")
+                .font(.caption).foregroundStyle(.white.opacity(0.7))
+        }
     }
 
     private var sendingSection: some View {
@@ -198,8 +216,7 @@ struct TVContainerTransferView: View {
     private var phoneSection: some View {
         if let fingerprint = model.phoneFingerprint {
             Section {
-                Text(TVContainerIdentityStore.displayFingerprint(fingerprint))
-                    .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                fingerprintText(fingerprint)
             } header: { heading("THIS IPHONE'S TLS FINGERPRINT") } footer: {
                 Text("Compare this phone fingerprint with the Apple TV Pair popup. Transfer pairing is separate from developer-device pairing.")
                     .foregroundStyle(.white.opacity(0.7))
@@ -214,8 +231,7 @@ struct TVContainerTransferView: View {
                 ForEach(model.pins) { pin in
                     VStack(alignment: .leading, spacing: 8) {
                         Text(pin.name).bold()
-                        Text(TVContainerIdentityStore.displayFingerprint(pin.fingerprint))
-                            .font(.system(.caption2, design: .monospaced)).textSelection(.enabled)
+                        fingerprintText(pin.fingerprint, style: .caption2)
                         SwiftUI.Button("Forget TV / Pair again", role: .destructive) { forgetting = pin }
                             .disabled(model.busy)
                     }.padding(.vertical, 4)
@@ -229,21 +245,43 @@ struct TVContainerTransferView: View {
             List {
                 Section("Compare the TV fingerprint") {
                     Text("Keep TVContainer Settings visible on Apple TV. Confirm that its TLS fingerprint exactly matches this one before continuing.")
-                    Text(TVContainerIdentityStore.displayFingerprint(prompt.tvFingerprint))
-                        .font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                    fingerprintText(prompt.tvFingerprint, style: .body)
                 }.listRowBackground(Color.white.opacity(0.15))
                 Section("Then approve this iPhone on TV") {
                     Text("After approving here, Apple TV can show Pair / Cancel. Compare this phone fingerprint with that popup and approve on the TV.")
-                    Text(TVContainerIdentityStore.displayFingerprint(prompt.phoneFingerprint))
-                        .font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                    fingerprintText(prompt.phoneFingerprint, style: .body)
                 }.listRowBackground(Color.white.opacity(0.15))
                 Section {
-                    SwiftUI.Button("TV fingerprint matches") { model.answerPairing(true) }.bold()
+                    SwiftUI.Button("TV fingerprint matches") {
+                        guard !hideTLSFingerprints else { return }
+                        model.answerPairing(true)
+                    }.bold().disabled(hideTLSFingerprints)
+                    if hideTLSFingerprints { Text("Tap the eye button to reveal and compare both fingerprints before approving.").font(.caption) }
                     SwiftUI.Button("Cancel pairing", role: .cancel) { model.answerPairing(false) }
                 }.listRowBackground(Color.white.opacity(0.15))
                 Text("Pairing expires after about 90 seconds. Restart the connection if it expires.").font(.caption)
             }.scrollContentBackground(.hidden).foregroundStyle(.white).tint(.white)
                 .background(Color(uiColor: .settingsBackground).ignoresSafeArea()).navigationTitle("Verify fingerprints")
+                .toolbar { ToolbarItem(placement: .navigationBarTrailing) { fingerprintToggle } }
+        }
+    }
+
+    private var fingerprintToggle: some View {
+        SwiftUI.Button { hideTLSFingerprints.toggle() } label: {
+            Image(systemName: hideTLSFingerprints ? "eye.slash" : "eye")
+        }
+        .accessibilityLabel(hideTLSFingerprints ? "Show TLS fingerprints" : "Hide TLS fingerprints")
+    }
+
+    @ViewBuilder
+    private func fingerprintText(_ value: String, style: Font.TextStyle = .caption) -> some View {
+        let displayed = TVContainerIdentityStore.displayFingerprint(value)
+        if hideTLSFingerprints {
+            Text(String(displayed.map { $0 == " " ? Character(" ") : Character("•") }))
+                .font(.system(style, design: .monospaced))
+                .accessibilityLabel("TLS fingerprint hidden")
+        } else {
+            Text(displayed).font(.system(style, design: .monospaced)).textSelection(.enabled)
         }
     }
 
