@@ -124,8 +124,16 @@ struct TVContainerTransferView: View {
                     .keyboardType(.numberPad).disabled(model.busy)
                     .accessibilityLabel("Current TVContainer port")
                 SwiftUI.Button(action: connectPairedTV) {
-                    Label("Connect to TVContainer", systemImage: "appletv.fill").bold()
+                    HStack {
+                        Label("Connect to TVContainer", systemImage: "appletv.fill").bold()
+                        Spacer()
+                        if model.connectionActive {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                                .accessibilityHidden(true)
+                        }
+                    }
                 }.disabled(model.busy || pairedTVID == nil || manualPort.isEmpty)
+                .accessibilityValue(model.connectionActive ? "Connected" : "Disconnected")
             }
             if let manualError { Text(manualError).font(.caption).foregroundStyle(.orange) }
         } header: { heading("PAIRED APPLE TV") } footer: {
@@ -157,7 +165,6 @@ struct TVContainerTransferView: View {
     private var connectionSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
-                connectionIndicator
                 Text(model.status).font(.system(size: 17, weight: .semibold))
                 if let selected { Text(selected.name).font(.subheadline).foregroundStyle(.white.opacity(0.7)) }
                 if model.selectedID != nil && selected == nil && !model.busy {
@@ -180,23 +187,10 @@ struct TVContainerTransferView: View {
                 }
                 if let error = model.error { Text(error).font(.subheadline).foregroundStyle(.orange).textSelection(.enabled) }
             }.padding(.vertical, 4)
-        } header: { heading("CONNECTION & TRANSFER") } footer: {
+        } header: { heading("Transfer").textCase(nil) } footer: {
             Text("After uploading, confirm Install or Import on Apple TV. TVContainer sends its final result after the operation finishes. Upload progress alone does not confirm installation.")
                 .foregroundStyle(.white.opacity(0.7))
         }.listRowBackground(Color.white.opacity(0.15))
-    }
-
-    @ViewBuilder
-    private var connectionIndicator: some View {
-        if model.connectionActive {
-            Label("Connected securely", systemImage: "checkmark.circle.fill")
-                .font(.headline).foregroundStyle(.green)
-        } else if model.selectedPin != nil && model.error == nil && !model.busy {
-            Label("Pairing verified", systemImage: "checkmark.circle.fill")
-                .font(.headline).foregroundStyle(.green)
-            Text("Disconnected. Connect again or send a file to reconnect.")
-                .font(.caption).foregroundStyle(.white.opacity(0.7))
-        }
     }
 
     private var sendingSection: some View {

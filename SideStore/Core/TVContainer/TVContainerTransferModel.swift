@@ -143,7 +143,7 @@ final class TVContainerTransferModel: ObservableObject {
                 guard generation == token else { return }
                 selectedPin = stream.peerFingerprint
                 pins = try await TVContainerIdentityStore.shared.pins()
-                status = "Connected securely. Ready to send."
+                status = "Ready to send."
             } catch { if generation == token { disconnectSession(); self.error = connectionError(error); status = "Not connected." } }
             finish(token)
         }
