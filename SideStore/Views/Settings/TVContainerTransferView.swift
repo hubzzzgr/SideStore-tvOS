@@ -104,10 +104,12 @@ struct TVContainerTransferView: View {
                     .font(.subheadline).foregroundStyle(.white.opacity(0.7))
             } else {
                 Menu {
-                    ForEach(appleTV.saved) { tv in
-                        SwiftUI.Button { pairedTVID = tv.id } label: {
-                            if pairedTVID == tv.id { Label(tv.name, systemImage: "checkmark") }
-                            else { Text(tv.name) }
+                    Section("Choose a paired TV") {
+                        ForEach(appleTV.saved) { tv in
+                            SwiftUI.Button { pairedTVID = tv.id } label: {
+                                if pairedTVID == tv.id { Label(tv.name, systemImage: "checkmark") }
+                                else { Text(tv.name) }
+                            }
                         }
                     }
                 } label: {
