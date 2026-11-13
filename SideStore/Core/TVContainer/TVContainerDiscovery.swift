@@ -39,6 +39,9 @@ final class TVContainerDiscovery: ObservableObject {
                         case let .string(string): value = string
                         default: value = ""
                         }
+                        // Protocol acceptance must be exact; display sanitization
+                        // must not turn malformed "1\n" metadata into version 1.
+                        if key == "protocol" { return value }
                         return String(String.UnicodeScalarView(value.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.prefix(200)))
                     }
                     let fallback: String

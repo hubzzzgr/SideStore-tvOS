@@ -74,7 +74,7 @@ struct TVContainerTransferView: View {
                             Text("TVContainer \(device.appVersion.isEmpty ? "Unknown version" : device.appVersion)")
                                 .font(.subheadline).foregroundStyle(.white.opacity(0.7))
                             if !device.supported {
-                                Text("Unsupported protocol: \(device.protocolVersion.isEmpty ? "not advertised" : device.protocolVersion)")
+                                Text("Unsupported protocol: \(device.protocolVersion.isEmpty ? "not advertised" : String(reflecting: device.protocolVersion))")
                                     .font(.caption).foregroundStyle(.orange)
                             }
                             // Bonjour names may be duplicated; the service endpoint
