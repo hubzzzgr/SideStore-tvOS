@@ -113,7 +113,7 @@ final class TVContainerTransferModel: ObservableObject {
         return token
     }
 
-    func stage(_ source: URL, sendTo device: TVContainerDevice? = nil) {
+    func stage(_ source: URL) {
         guard !busy else { return }
         clearStaged()
         let token = begin("Preparing IPA…")
@@ -122,8 +122,7 @@ final class TVContainerTransferModel: ObservableObject {
                 let copy = try await staging.copy(source)
                 guard !Task.isCancelled, generation == token else { remove(copy); return }
                 staged = copy
-                if let device { await runTransfer(copy, action: .uploadIPA, to: device, token: token) }
-                else { status = "IPA ready. Choose a TV and send." }
+                status = "IPA ready. Choose a TV, then tap Send and install IPA."
             } catch { if generation == token { self.error = error.localizedDescription; status = "Unable to prepare IPA." } }
             finish(token)
         }

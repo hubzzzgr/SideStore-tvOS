@@ -10,7 +10,7 @@ struct TVContainerTransferView: View {
     @ObservedObject private var theme = ThemeManager.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var pickingIPA = false
-    @State private var pickedURL: URL?
+    @State private var initialized = false
     @State private var certificateConsent = false
     @State private var forgetting: TVContainerIdentityStore.Pin?
     @State private var manualPort = ""
@@ -28,6 +28,10 @@ struct TVContainerTransferView: View {
         menu
         .navigationTitle("TVContainer").navigationBarTitleDisplayMode(.large)
         .task {
+            // A full-screen Files picker can make this view appear again.
+            // Do not restore another TV/port over the in-progress selection.
+            guard !initialized else { return }
+            initialized = true
             model.open(initialIPA: initialIPA)
             do {
                 try await appleTV.load()
@@ -36,16 +40,22 @@ struct TVContainerTransferView: View {
             }
             catch { manualError = error.localizedDescription }
         }
-        .onDisappear { model.close() }
+        .onDisappear {
+            // Presenting Files or the fingerprint sheet is not leaving this flow.
+            if !pickingIPA && model.pairingPrompt == nil { model.close() }
+        }
         .onChange(of: scenePhase) { _, phase in if phase == .background { model.cancel() } }
         .onChange(of: pairedTVID) { _, _ in
             target = nil; manualError = nil; model.resetDestination(); restorePort()
         }
         .onChange(of: manualPort) { _, _ in target = nil; model.resetDestination() }
-        .sheet(isPresented: $pickingIPA, onDismiss: {
-            if let pickedURL { model.stage(pickedURL, sendTo: selected); self.pickedURL = nil }
-        }) {
-            TVContainerIPAPicker { url in pickedURL = url; pickingIPA = false }
+        .sheet(isPresented: $pickingIPA) {
+            TVContainerIPAPicker { url in
+                // Consume the delegate result directly rather than depending on
+                // a second onDismiss callback to retrieve transient picker state.
+                if let url { model.stage(url) }
+                pickingIPA = false
+            }
         }
         .sheet(item: Binding(get: { model.pairingPrompt }, set: { if $0 == nil { model.answerPairing(false) } })) { prompt in
             pairingSheet(prompt)
@@ -102,7 +112,7 @@ struct TVContainerTransferView: View {
             }
             if let manualError { Text(manualError).font(.caption).foregroundStyle(.orange) }
         } header: { heading("PAIRED APPLE TV") } footer: {
-            Text("The address comes from your saved Apple TV pairing and is resolved again for each connection. The last port used for this TV is pre-filled; update it if TVContainer shows a different port. TVContainer still requires its own fingerprint approvals. Keep Local Network access enabled for LiveContainer. TVContainer's version and running status cannot be checked until you connect.")
+            Text("The address comes from your saved Apple TV pairing and is resolved again for each connection. The last port used for this TV is pre-filled; update it if TVContainer shows a different port. The connection check closes when finished; TVContainer shows connected during a transfer. Keep Local Network access enabled for LiveContainer.")
                 .foregroundStyle(.white.opacity(0.7))
         }.listRowBackground(Color.white.opacity(0.15))
     }
@@ -256,9 +266,14 @@ private struct TVContainerIPAPicker: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
     final class Coordinator: NSObject, UIDocumentPickerDelegate {
         let selected: (URL?) -> Void
+        private var completed = false
         init(_ selected: @escaping (URL?) -> Void) { self.selected = selected }
-        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) { selected(urls.first) }
-        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { selected(nil) }
+        private func finish(_ url: URL?) {
+            guard !completed else { return }
+            completed = true; selected(url)
+        }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) { finish(urls.first) }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { finish(nil) }
     }
 }
 
