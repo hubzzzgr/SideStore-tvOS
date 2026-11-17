@@ -54,7 +54,7 @@ jobs:
         if: ${{ inputs.skip_protocol_tests }}
         run: |
           set -o pipefail
-          swift test --package-path Packages/TVPairCore --filter TVContainer 2>&1 | tee artifacts/tvcontainer-tests.log
+          swift test --package-path Packages/TVPairCore --filter 'TVContainer|TVOperationCoordinator' 2>&1 | tee artifacts/tvcontainer-tests.log
       - name: TV library migration and isolation checks
         run: |
           set -euo pipefail

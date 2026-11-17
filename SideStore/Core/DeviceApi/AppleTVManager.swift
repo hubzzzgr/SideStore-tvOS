@@ -34,6 +34,10 @@ final class AppleTVManager: ObservableObject {
     private var pinRequestID: UUID?
     private var operation: Task<Void, Never>?
     private var connecting: Task<DeveloperConnection, Error>?
+    private var connectionAttempt: UUID?
+    private var inventoryTask: Task<Void, Error>?
+    private var inventoryAttempt: UUID?
+    private var changingTV = false
     private var leases = 0
     private var staged: [String: String] = [:]
     private var readyAt = Date.distantPast
@@ -62,7 +66,7 @@ final class AppleTVManager: ObservableObject {
             }
         }
         saved = try await vault.save(record)
-        try select(record.id)
+        try await selectLibrary(record.id)
         status = "Pairing imported. Connect to verify this Apple TV."
     }
     func exportPairing(_ id: UUID) async throws -> Data {
@@ -90,7 +94,7 @@ final class AppleTVManager: ObservableObject {
         return host
     }
     func select(_ id: UUID) throws {
-        guard leases == 0, !busy, connecting == nil, !AppManager.shared.isActivelyManagingAnyApp else { throw TVInstallationError.busy }
+        guard leases == 0, !busy, connecting == nil, !TVOperationCoordinator.shared.hasActiveOperations else { throw TVInstallationError.busy }
         guard saved.contains(where: { $0.id == id }) else { throw OperationError.invalidParameters("Choose a saved Apple TV.") }
         let context = DatabaseManager.shared.viewContext
         try context.performAndWait {
@@ -111,18 +115,18 @@ final class AppleTVManager: ObservableObject {
         NotificationCenter.default.post(name: TVLibrary.didChange, object: nil)
     }
     func selectLibrary(_ id: UUID) async throws {
-        await stopIconRefresh()
+        guard saved.contains(where: { $0.id == id }) else { throw OperationError.invalidParameters("Choose a saved Apple TV.") }
+        try await startTVChange()
+        defer { finishTVChange() }
+        await stopTVWork()
         try select(id)
     }
     func delete(_ id: UUID) async throws {
-        guard leases == 0, !busy, connecting == nil else { throw TVInstallationError.busy }
-        let apps = try DatabaseManager.shared.viewContext.performAndWait {
-            try InstalledApp.allLibraries(in: DatabaseManager.shared.viewContext)
-                .contains { !$0.isDeleted && $0.libraryIdentifier == id.uuidString }
-        }
-        guard !apps else {
-            throw OperationError.invalidParameters("Remove this TV's tracked apps before forgetting its pairing.")
-        }
+        try await startTVChange()
+        defer { finishTVChange() }
+        await stopTVWork()
+        // Retain tracked records and cached IPAs under their existing library ID.
+        // Forgetting credentials never removes an app from the physical TV.
         saved = try await vault.delete(id: id)
         if selectedID == id {
             developer?.cancel(); developer = nil; selectedID = nil; information = nil
@@ -133,8 +137,35 @@ final class AppleTVManager: ObservableObject {
             readiness.send(.success(false))
         }
     }
+    private func startTVChange() async throws {
+        while changingTV { try await Task.sleep(for: .milliseconds(50)) }
+        try Task.checkCancellation()
+        changingTV = true
+        TVOperationCoordinator.shared.beginTransition()
+    }
+    private func finishTVChange() {
+        TVOperationCoordinator.shared.endTransition()
+        changingTV = false
+    }
+    private func stopTVWork() async {
+        let setupTask = operation, icons = iconRefresh, inspection = inventoryTask, pendingConnection = connecting
+        setupTask?.cancel(); icons?.cancel(); inspection?.cancel(); pendingConnection?.cancel()
+        transport?.cancel(); developer?.cancel(); finishPIN(.failure(CancellationError()))
+        await setupTask?.value
+        await icons?.value
+        _ = await inspection?.result
+        _ = await pendingConnection?.result
+        // Admission stays closed until pipeline cleanup (including endOperations)
+        // has finished. No old pipeline may resume against the newly selected TV.
+        await TVOperationCoordinator.shared.drain()
+        operation = nil; iconRefresh = nil; inventoryTask = nil; inventoryAttempt = nil
+        connecting = nil; connectionAttempt = nil; transport = nil; developer = nil
+        staged.removeAll(); leases = 0; busy = false; readyAt = .distantPast
+        information = nil; installedApps = [:]; transferStatus = nil
+        readiness.send(.success(false))
+    }
     func setup(host: String) {
-        guard !busy, leases == 0, connecting == nil else { return }
+        guard !changingTV, !busy, leases == 0, connecting == nil else { return }
         busy = true; status = "Finding the TV's developer pairing service…"
         discovery.start()
         operation = Task {
@@ -150,6 +181,7 @@ final class AppleTVManager: ObservableObject {
                 }, report: reporter)
                 // Persist before the handoff so a service timeout never loses trust.
                 saved = try await vault.save(record)
+                try Task.checkCancellation()
                 tcp.cancel(); transport = nil
                 busy = false
                 try select(record.id)
@@ -167,11 +199,12 @@ final class AppleTVManager: ObservableObject {
     private func setStatus(_ value: String) { status = value }
     private func requestPIN() async throws -> String {
         needsPIN = true; pin = ""
+        let requestID = UUID()
         defer { needsPIN = false; pin = "" }
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
-                let requestID = UUID(); pinRequestID = requestID
+                pinRequestID = requestID
                 pinContinuation = continuation
                 Task { [weak self] in
                     try? await Task.sleep(for: .seconds(90))
@@ -179,7 +212,12 @@ final class AppleTVManager: ObservableObject {
                     self?.finishPIN(.failure(TVPairError.timeout))
                 }
             }
-        } onCancel: { [weak self] in Task { @MainActor in self?.finishPIN(.failure(CancellationError())) } }
+        } onCancel: { [weak self] in
+            Task { @MainActor in
+                guard self?.pinRequestID == requestID else { return }
+                self?.finishPIN(.failure(CancellationError()))
+            }
+        }
     }
     private func finishPIN(_ result: Result<String, Error>) {
         let continuation = pinContinuation; pinContinuation = nil; pinRequestID = nil
@@ -207,11 +245,22 @@ final class AppleTVManager: ObservableObject {
         throw OperationError.notReachable(reason: "The paired TV's trusted endpoint was not discovered. Keep it awake on the same Wi-Fi and retry with the saved pairing.")
     }
     func ready(force: Bool = false) async throws -> DeveloperConnection {
-        if let connecting { return try await connecting.value }
+        try Task.checkCancellation()
+        guard !changingTV else { throw CancellationError() }
+        if let connecting {
+            let generation = TVOperationCoordinator.shared.generation, id = selectedID
+            let value = try await connecting.value
+            try Task.checkCancellation()
+            guard generation == TVOperationCoordinator.shared.generation, id == selectedID else { throw CancellationError() }
+            return value
+        }
         if !force, let developer, leases > 0 || Date().timeIntervalSince(readyAt) < 15 { return developer }
+        guard let id = selectedID else { throw OperationError.noDevice(reason: "Pair and select an Apple TV in Settings.") }
+        let generation = TVOperationCoordinator.shared.generation
+        let attempt = UUID()
         let task = Task<DeveloperConnection, Error> {
-            guard let id = selectedID else { throw OperationError.noDevice(reason: "Pair and select an Apple TV in Settings.") }
             let record = try await vault.record(id: id)
+            try Task.checkCancellation()
             developer?.cancel(); developer = nil; information = nil
             let resolved = try await endpoint(for: record)
             let tcp = TCPTransport(endpoint: resolved)
@@ -221,6 +270,8 @@ final class AppleTVManager: ObservableObject {
                 saved = try await vault.save(verified)
                 let tunnel = try await TrustedTunnel.establish(endpoint: resolved, session: client, report: reporter)
                 let connection = DeveloperConnection(tunnel: tunnel, hostIdentifier: verified.hostIdentifier, savedName: verified.deviceName)
+                var committed = false
+                defer { if !committed { connection.cancel() } }
                 let info = try await connection.inspect(report: reporter)
                 guard info.productType?.hasPrefix("AppleTV") == true, let udid = info.identifier, !udid.isEmpty,
                       info.osVersion != nil else {
@@ -230,23 +281,37 @@ final class AppleTVManager: ObservableObject {
                 guard info.instrumentsServiceResponded || info.deviceInfoServiceResponded else {
                     connection.cancel(); throw TVInstallationError.missingService("a responding developer service")
                 }
+                try await connection.verifyInstallationServices()
+                try Task.checkCancellation()
+                guard selectedID == id, generation == TVOperationCoordinator.shared.generation else { throw CancellationError() }
                 information = info
                 UserDefaults.standard.set(info.osVersion, forKey: "AppleTV.osVersion")
-                try await connection.verifyInstallationServices()
                 developer = connection; readyAt = Date()
+                committed = true
                 status = "Developer access and installation services verified."
                 readiness.send(.success(true))
                 return connection
             } catch { tcp.cancel(); throw error }
         }
         connecting = task
-        defer { connecting = nil }
-        do { return try await task.value }
-        catch { readiness.send(.failure(error)); status = error.localizedDescription; throw error }
+        connectionAttempt = attempt
+        defer { if connectionAttempt == attempt { connecting = nil; connectionAttempt = nil } }
+        do {
+            let value = try await task.value
+            try Task.checkCancellation()
+            guard generation == TVOperationCoordinator.shared.generation, selectedID == id else { throw CancellationError() }
+            return value
+        }
+        catch {
+            guard generation == TVOperationCoordinator.shared.generation else { throw CancellationError() }
+            readiness.send(.failure(error)); status = error.localizedDescription
+            throw error
+        }
     }
     func beginOperations() async throws {
         // App mutations take priority over optional, read-only icon retrieval.
         await stopIconRefresh()
+        try Task.checkCancellation()
         guard leases == 0, !busy else { throw TVInstallationError.busy }
         leases = 1
         do { _ = try await ready(force: true) }
@@ -268,7 +333,7 @@ final class AppleTVManager: ObservableObject {
         }
     }
     func refreshIcons(_ requests: [AppleTVIconRequest]) {
-        guard !requests.isEmpty, leases == 0, !busy, connecting == nil, iconRefresh == nil else { return }
+        guard !changingTV, !requests.isEmpty, leases == 0, !busy, connecting == nil, iconRefresh == nil else { return }
         leases = 1
         iconRefresh = Task {
             var changed = false
@@ -390,9 +455,17 @@ final class AppleTVManager: ObservableObject {
         }
     }
     func inventory() async throws {
-        guard leases == 0, !busy else { throw TVInstallationError.busy }
-        leases = 1
-        defer { leases = 0 }
-        installedApps = try await ready(force: true).lookupApps()
+        guard !changingTV, leases == 0, !busy, inventoryTask == nil else { throw TVInstallationError.busy }
+        let attempt = UUID()
+        let task = Task<Void, Error> {
+            leases = 1
+            defer { leases = 0 }
+            let apps = try await ready(force: true).lookupApps()
+            try Task.checkCancellation()
+            installedApps = apps
+        }
+        inventoryTask = task; inventoryAttempt = attempt
+        defer { if inventoryAttempt == attempt { inventoryTask = nil; inventoryAttempt = nil } }
+        try await task.value
     }
 }

@@ -9,6 +9,8 @@ struct AppleTVSetupView: View {
     @State private var host = ""
     @State private var error: String?
     @State private var working = false
+    @State private var changingTV = false
+    @State private var changeRequestID = UUID()
     @State private var ready = false
     @State private var pendingForget: SavedDevice?
     @State private var showPairingImporter = false
@@ -18,7 +20,7 @@ struct AppleTVSetupView: View {
     @State private var fileNotice: String?
     @FocusState private var codeFocused: Bool
 
-    private var busy: Bool { model.busy || working }
+    private var busy: Bool { model.busy || working || changingTV }
     private var nearby: [AppleTVDevice] {
         discovery.devices.filter { $0.deviceFamily == .appleTV || $0.service == .manualPairing }
     }
@@ -63,11 +65,11 @@ struct AppleTVSetupView: View {
             get: { pendingForget != nil }, set: { if !$0 { pendingForget = nil } }
         ), titleVisibility: .visible) {
             SwiftUI.Button("Forget Pairing", role: .destructive) {
-                if let device = pendingForget { perform { try await model.delete(device.id) } }
+                if let device = pendingForget { changeTV { try await model.delete(device.id) } }
                 pendingForget = nil
             }
         } message: {
-            Text("You will need the code on your TV to pair again. This does not revoke trust on the TV.")
+            Text("This stops current Apple TV work and removes the saved pairing. Installed apps and tracked library records are kept. You will need to pair again to manage this TV. An installation already accepted by the TV may still finish. This does not revoke trust on the TV.")
         }
         .task {
             do { try await model.load() } catch { self.error = error.localizedDescription }
@@ -149,13 +151,13 @@ struct AppleTVSetupView: View {
                         Text(model.selectedID == device.id ? "Selected Apple TV" : "Saved pairing").font(.caption).foregroundStyle(.white.opacity(0.7))
                     }
                     Spacer()
-                    SwiftUI.Button("Connect") { perform { try await model.selectLibrary(device.id); _ = try await model.ready(force: true) } }
-                        .buttonStyle(.borderless).font(.system(size: 17, weight: .bold)).disabled(busy)
+                    SwiftUI.Button("Connect") { changeTV { try await model.selectLibrary(device.id); _ = try await model.ready(force: true) } }
+                        .buttonStyle(.borderless).font(.system(size: 17, weight: .bold))
                     Menu {
                         SwiftUI.Button("Export Pairing File", systemImage: "square.and.arrow.up") { exportPairing(device.id) }
                         SwiftUI.Button("Forget Pairing", role: .destructive) { pendingForget = device }
                     } label: { Image(systemName: "ellipsis.circle").padding(.vertical, 8) }
-                    .disabled(busy).accessibilityLabel("Options for \(device.name)")
+                    .accessibilityLabel("Options for \(device.name)")
                 }.padding(.vertical, 4)
             }
         } header: { Text("YOUR APPLE TVS").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.65)) }
@@ -261,6 +263,17 @@ struct AppleTVSetupView: View {
             let data = try await model.exportPairing(id)
             pairingExport = PairingFileDocument(data: data)
             showPairingExporter = true
+        }
+    }
+
+    private func changeTV(_ action: @escaping @MainActor () async throws -> Void) {
+        let requestID = UUID(); changeRequestID = requestID
+        changingTV = true; error = nil
+        Task { @MainActor in
+            defer { if changeRequestID == requestID { changingTV = false } }
+            do { try await action() }
+            catch is CancellationError { /* A newer selection replaced this request. */ }
+            catch { if changeRequestID == requestID { self.error = error.localizedDescription } }
         }
     }
 

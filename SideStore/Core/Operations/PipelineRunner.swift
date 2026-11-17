@@ -9,6 +9,7 @@
 @preconcurrency import UIKit
 import CoreData
 import SideSign
+import TVPairCore
 
 
 protocol PipelineProgress: Sendable{
@@ -103,6 +104,17 @@ final class PipelineRunner: Sendable
                  handler: PipelineExecutionHandler,
                  group: RefreshGroup) async throws -> RefreshGroup
     {
+        try Task.checkCancellation()
+        guard group.tvLibraryIdentifier == TVLibrary.currentIdentifier else { throw CancellationError() }
+        let admission = try TVOperationCoordinator.shared.enter(generation: group.tvGeneration) { group.cancel() }
+        var acquiredDevice = false
+        defer {
+            let releaseDevice = acquiredDevice
+            Task { @MainActor in
+                if releaseDevice { await AppleTVManager.shared.endOperations() }
+                TVOperationCoordinator.shared.leave(admission)
+            }
+        }
         for operation in operations {
             switch operation {
             case .backup, .restore, .activate, .deactivate:
@@ -151,7 +163,8 @@ final class PipelineRunner: Sendable
         }
         
         try await AppleTVManager.shared.beginOperations()
-        defer { Task { @MainActor in await AppleTVManager.shared.endOperations() } }
+        acquiredDevice = true
+        try Task.checkCancellation()
 
         /* Remote Apple TV readiness check */
         do {

@@ -9,9 +9,12 @@
 import Foundation
 import CoreData
 import SideSign
+import TVPairCore
 
 final class RefreshGroup: NSObject
 {
+    let tvGeneration = TVOperationCoordinator.shared.generation
+    let tvLibraryIdentifier = TVLibrary.currentIdentifier
     let dbContext: NSManagedObjectContext
     let sharedContext: SharedPipelineContext
     let progress = Progress.discreteProgress(totalUnitCount: 100)
@@ -28,8 +31,16 @@ final class RefreshGroup: NSObject
     // so they don't die out from under us.
     private(set) var retainedContexts = Set<NSManagedObjectContext>()
     
-    var activeTask: Task<Void, Never>?
     private let lock = NSLock()
+    private var task: Task<Void, Never>?
+    private var cancelRequested = false
+    var activeTask: Task<Void, Never>? {
+        get { lock.withLock { task } }
+        set {
+            let cancel = lock.withLock { task = newValue; return cancelRequested }
+            if cancel { newValue?.cancel() }
+        }
+    }
     
     init(dbContext: NSManagedObjectContext, sharedContext: SharedPipelineContext = SharedPipelineContext())
     {
@@ -55,6 +66,7 @@ final class RefreshGroup: NSObject
     
     func cancel()
     {
-        self.activeTask?.cancel()
+        let task = lock.withLock { cancelRequested = true; return self.task }
+        task?.cancel()
     }
 }

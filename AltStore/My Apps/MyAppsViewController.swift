@@ -294,6 +294,7 @@ class MyAppsViewController: UICollectionViewController
                         try await manager.selectLibrary(device.id)
                         _ = try await manager.ready(force: true)
                     }
+                    catch is CancellationError { /* A newer TV selection replaced this one. */ }
                     catch { self?.presentLibraryError(error) }
                 }
             }
