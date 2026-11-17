@@ -31,6 +31,7 @@ final class PipelineExecutor: @unchecked Sendable {
         var finalApp: InstalledApp?
         
         for pipelineStep in pipelineSteps {
+            try Task.checkCancellation()
             if let result = try await executeStep(
                 pipelineStep.step,
                 context: context,
