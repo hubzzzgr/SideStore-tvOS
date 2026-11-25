@@ -130,12 +130,8 @@ public actor AnisetteConfigManager {
             return config
         }()
 
-        let storedClientInfo = udClientInfo?.isEmpty == false ? udClientInfo : fileConfig?.clientInfo
-        let storedUserAgent = udUserAgent?.isEmpty == false ? udUserAgent : fileConfig?.userAgent
-        let (resolvedClientInfo, resolvedUserAgent) = Self.compatibleClientHeaders(
-            clientInfo: storedClientInfo ?? "",
-            userAgent: storedUserAgent ?? ""
-        )
+        let resolvedClientInfo   = (udClientInfo?.isEmpty == false ? udClientInfo : fileConfig?.clientInfo) ?? AppConstants.Anisette.defaultClientInfo
+        let resolvedUserAgent    = (udUserAgent?.isEmpty == false ? udUserAgent : fileConfig?.userAgent) ?? AppConstants.Anisette.defaultUserAgent
         let resolvedDeviceID     = (udDeviceID?.isEmpty == false ? udDeviceID : fileConfig?.customDeviceID)
         let resolvedLocalUserID  = (udLocalUserID?.isEmpty == false ? udLocalUserID : fileConfig?.customLocalUserID)
         let resolvedLocale       = (udLocale?.isEmpty == false ? udLocale : fileConfig?.customLocale)
@@ -157,24 +153,11 @@ public actor AnisetteConfigManager {
         )
     }
 
-    private static func compatibleClientHeaders(clientInfo: String, userAgent: String) -> (String, String) {
-        let defaults = AppConstants.Anisette.self
-        let info = clientInfo.isEmpty ? defaults.defaultClientInfo : defaults.normalizedClientInfo(clientInfo)
-        let agent = userAgent.isEmpty ? defaults.defaultUserAgent : userAgent
-
-        // Some remote servers supplied this legacy profile, which newer Apple accounts reject.
-        if info.contains("<Mac OS X;10.12.6;") {
-            let legacyAgent = "akd/1.0 CFNetwork/811.5.4 Darwin/16.7.0"
-            return (defaults.defaultClientInfo, agent == legacyAgent ? defaults.defaultUserAgent : agent)
-        }
-        return (info, agent)
-    }
-
     public func makeRequestHeaders() -> AnisetteRequestHeaders {
         let config = loadConfig()
         return AnisetteRequestHeaders().with {
-            $0.clientInfo = config.clientInfo
-            $0.userAgent  = config.userAgent
+            $0.clientInfo = config.clientInfo.isEmpty ? AppConstants.Anisette.defaultClientInfo : config.clientInfo
+            $0.userAgent  = config.userAgent.isEmpty ? AppConstants.Anisette.defaultUserAgent : config.userAgent
             if let customLU = config.customLocalUserID, !customLU.isEmpty { $0.localUserID = customLU }
             if let customDev = config.customDeviceID, !customDev.isEmpty { $0.deviceID = customDev }
             if let loc = config.customLocale, !loc.isEmpty { $0.locale = loc }

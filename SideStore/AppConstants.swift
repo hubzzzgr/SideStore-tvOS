@@ -57,13 +57,9 @@ public enum AppConstants {
         public static let defaultODAMetadataURL       = URL(string: "https://zzz.haus/oda.json")!
         public static var defaultODAMetadataURLString: String { defaultODAMetadataURL.absoluteString }
 
-        public static let defaultClientInfo           = normalizedClientInfo(Constants.Anisette.defaultClientInfo)
+        // Proxied from upstream SideSign
+        public static let defaultClientInfo           = Constants.Anisette.defaultClientInfo
         public static let defaultUserAgent            = Constants.Anisette.defaultUserAgent
-
-        static func normalizedClientInfo(_ clientInfo: String) -> String {
-            // Apple's sign-in endpoint expects "Mac OS X" for the macOS platform token.
-            clientInfo.replacingOccurrences(of: "<macOS;", with: "<Mac OS X;")
-        }
 
         public enum URLs {
             public static let grandSlamLookup = Constants.Anisette.URLs.grandSlamLookup
